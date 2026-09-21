@@ -360,8 +360,11 @@ components:
           type: string
           format: date-time
 
-    OrderAcceptedEvent:
+    OrderEvent:
       type: object
+      description: |
+        One entry of the event log.
+        The schema of `data` depends on `event_type`; the if and then keywords below apply OrderAcceptedData to order.accepted events.
       required: [event_id, event_type, event_version, occurred_at, data]
       properties:
         event_id:
@@ -371,7 +374,10 @@ components:
           description: Position in the log. Increasing in commit order. Not contiguous. The deduplication key.
         event_type:
           type: string
-          enum: [order.accepted]
+          description: |
+            Currently always `order.accepted`.
+            New types are added without a version change, so clients must skip events with an unknown event_type and still advance past them.
+          examples: [order.accepted]
         event_version:
           type: integer
           format: int32
@@ -380,9 +386,19 @@ components:
         occurred_at:
           type: string
           format: date-time
-          description: Equal to data.accepted_at. Informational; order by event_id, not by time.
+          description: When the event occurred; for order.accepted, equal to data.accepted_at. Informational; order by event_id, not by time.
         data:
-          $ref: '#/components/schemas/OrderAcceptedData'
+          type: object
+          description: The event's payload. For order.accepted it is OrderAcceptedData.
+      if:
+        required: [event_type]
+        properties:
+          event_type:
+            const: order.accepted
+      then:
+        properties:
+          data:
+            $ref: '#/components/schemas/OrderAcceptedData'
 
     OrderEventPage:
       type: object
@@ -392,7 +408,7 @@ components:
           type: array
           maxItems: 500
           items:
-            $ref: '#/components/schemas/OrderAcceptedEvent'
+            $ref: '#/components/schemas/OrderEvent'
         next_after:
           type: integer
           format: int64

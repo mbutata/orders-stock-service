@@ -156,12 +156,12 @@ The cursor is the integer `event_id` itself, not an opaque token, because consum
 | Member | Meaning |
 | --- | --- |
 | `event_id` | Position in the log. Increasing in commit order, not contiguous. Unique; the deduplication key. |
-| `event_type` | `order.accepted`, the only type. |
+| `event_type` | `order.accepted`, currently the only type. The contract leaves it open, so new types are added in place (consumer obligation 5). |
 | `event_version` | Version of `data`'s schema for this type, currently `1`. |
-| `occurred_at` | Equal to `data.accepted_at`. Informational only. |
-| `data` | `OrderAcceptedData`: `order_ref`, `customer_id`, `items` with unit prices and line totals, `total_cents`, `accepted_at`. |
+| `occurred_at` | When the event occurred; for `order.accepted`, equal to `data.accepted_at`. Informational only. |
+| `data` | Determined by `event_type`; for `order.accepted`, `OrderAcceptedData`: `order_ref`, `customer_id`, `items` with unit prices and line totals, `total_cents`, `accepted_at`. |
 
-`data` is a snapshot of the order at acceptance and never changes.
+An `order.accepted` event's `data` is a snapshot of the order at acceptance and never changes.
 It carries everything a consumer needs, so a consumer never has to call `GET /orders/{order_ref}` to process an event.
 It deliberately has no status: the event records that the order was accepted, which stays true forever.
 
