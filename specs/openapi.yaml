@@ -1,0 +1,686 @@
+openapi: 3.1.0
+info:
+  title: Orders and Stock Service API
+  version: 1.0.0
+  summary: Order intake with idempotent submission, stock levels, and an order-accepted event feed.
+  description: |
+    Normative HTTP contract of the orders-stock service.
+    The prose companion, including idempotency semantics and the consumer contract for the feed, is specs/04-api.md.
+
+    All amounts are integer minor units of the store's single currency.
+    All timestamps are RFC 3339 in UTC.
+    Every error response is application/problem+json (RFC 9457) with a stable `code` member.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development
+# Authentication is a non-goal (NG-01): every operation is deliberately open.
+security: []
+tags:
+  - name: orders
+    description: Order intake and order reads.
+  - name: stock
+    description: Current stock levels.
+  - name: feed
+    description: The order-accepted event feed for other systems.
+
+paths:
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Accept an order, idempotently by order_ref
+      description: |
+        Creates the order if its `order_ref` is new, pricing it from the current catalogue.
+        If an order with this `order_ref` already exists, nothing is created:
+        an identical resubmission returns the existing order with 200,
+        and a resubmission with different content returns 409.
+        Retrying a request that timed out or failed with 503 is always safe.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+            examples:
+              twoItems:
+                summary: An order with two items
+                value:
+                  order_ref: web-100045
+                  customer_id: cust-42
+                  items:
+                    - sku: BAN-001
+                      qty: 2
+                    - sku: APL-003
+                      qty: 1
+      responses:
+        '201':
+          description: The order was accepted. Its stock is applied asynchronously.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                accepted:
+                  $ref: '#/components/examples/AcceptedOrder'
+        '200':
+          description: |
+            Duplicate submission with identical content.
+            The existing order is returned in its current state; nothing was created or changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                duplicate:
+                  $ref: '#/components/examples/AcceptedOrder'
+        '409':
+          $ref: '#/components/responses/OrderRefConflict'
+        '422':
+          $ref: '#/components/responses/InvalidOrder'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /orders/{order_ref}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Fetch an order with its items and status
+      parameters:
+        - name: order_ref
+          in: path
+          required: true
+          description: The order's reference. Any value that is not an existing order_ref yields 404.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The order in its current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              examples:
+                accepted:
+                  $ref: '#/components/examples/AcceptedOrder'
+                stockCommitted:
+                  $ref: '#/components/examples/StockCommittedOrder'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /stock/{sku}:
+    get:
+      operationId: getStockLevel
+      tags: [stock]
+      summary: Read the current stock level of a SKU
+      description: |
+        `on_hand` is eventually consistent with order intake.
+        It reflects exactly the accepted orders whose events have `event_id <= as_of_event_id`.
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          description: The product's SKU. Any value that is not a known SKU yields 404.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The SKU's stock level.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockLevel'
+              examples:
+                bananas:
+                  value:
+                    sku: BAN-001
+                    on_hand: 44
+                    as_of_event_id: 6
+        '404':
+          $ref: '#/components/responses/SkuNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /order-events:
+    get:
+      operationId: listOrderEvents
+      tags: [feed]
+      summary: Read the order-accepted event log after a cursor
+      description: |
+        Returns events with `event_id > after` in ascending `event_id` order.
+        `event_id` order is commit order: once an event is visible, no event with a lower id can appear later,
+        so a consumer that stores `next_after` after processing a page never misses an event.
+        Delivery is at-least-once from the consumer's point of view; deduplicate by `event_id`.
+      parameters:
+        - name: after
+          in: query
+          required: false
+          description: Return events with an event_id greater than this value. Use 0 to read from the start.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of events to return.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: A page of events, possibly empty.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderEventPage'
+              examples:
+                onePage:
+                  $ref: '#/components/examples/EventPage'
+                caughtUp:
+                  summary: No new events
+                  value:
+                    events: []
+                    next_after: 6
+                    has_more: false
+        '422':
+          $ref: '#/components/responses/InvalidQuery'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+components:
+  schemas:
+    OrderRef:
+      type: string
+      description: Client-chosen order reference. It is the order's identity and its idempotency key. Case-sensitive.
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+      examples: [web-100045]
+
+    CustomerId:
+      type: string
+      description: Opaque customer reference owned by another system. Case-sensitive.
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+      examples: [cust-42]
+
+    Sku:
+      type: string
+      description: Product identifier. Case-sensitive.
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+      examples: [BAN-001]
+
+    OrderCreate:
+      type: object
+      description: |
+        A new order. Unknown members are rejected.
+        Each SKU may appear at most once in `items`; a repeated SKU is a validation error.
+      additionalProperties: false
+      required: [order_ref, customer_id, items]
+      properties:
+        order_ref:
+          $ref: '#/components/schemas/OrderRef'
+        customer_id:
+          $ref: '#/components/schemas/CustomerId'
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OrderItemCreate'
+
+    OrderItemCreate:
+      type: object
+      additionalProperties: false
+      required: [sku, qty]
+      properties:
+        sku:
+          $ref: '#/components/schemas/Sku'
+        qty:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 10000
+
+    OrderStatus:
+      type: string
+      description: |
+        `accepted`: the order is persisted and counted; its stock has not been applied yet.
+        `stock_committed`: the order's stock decrements have been applied. Terminal.
+      enum: [accepted, stock_committed]
+
+    OrderItem:
+      type: object
+      required: [sku, qty, unit_price_cents, line_total_cents]
+      properties:
+        sku:
+          $ref: '#/components/schemas/Sku'
+        qty:
+          type: integer
+          format: int32
+          minimum: 1
+        unit_price_cents:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The product's price when the order was accepted.
+        line_total_cents:
+          type: integer
+          format: int64
+          minimum: 0
+          description: qty multiplied by unit_price_cents.
+
+    Order:
+      type: object
+      required: [order_ref, customer_id, status, items, total_cents, accepted_at, stock_committed_at]
+      properties:
+        order_ref:
+          $ref: '#/components/schemas/OrderRef'
+        customer_id:
+          $ref: '#/components/schemas/CustomerId'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        items:
+          type: array
+          minItems: 1
+          description: In ascending SKU order.
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        total_cents:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Sum of the items' line_total_cents.
+        accepted_at:
+          type: string
+          format: date-time
+        stock_committed_at:
+          type: [string, 'null']
+          format: date-time
+          description: Set when status becomes stock_committed; null before.
+
+    StockLevel:
+      type: object
+      required: [sku, on_hand, as_of_event_id]
+      properties:
+        sku:
+          $ref: '#/components/schemas/Sku'
+        on_hand:
+          type: integer
+          format: int32
+          description: Units held after every applied order. Negative means backordered units.
+        as_of_event_id:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            The stock applier's offset. on_hand includes the effect of every order.accepted event
+            with event_id <= as_of_event_id and of no later event.
+
+    OrderAcceptedData:
+      type: object
+      description: Snapshot of the order at acceptance. It never changes.
+      required: [order_ref, customer_id, items, total_cents, accepted_at]
+      properties:
+        order_ref:
+          $ref: '#/components/schemas/OrderRef'
+        customer_id:
+          $ref: '#/components/schemas/CustomerId'
+        items:
+          type: array
+          minItems: 1
+          description: In ascending SKU order.
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        total_cents:
+          type: integer
+          format: int64
+          minimum: 0
+        accepted_at:
+          type: string
+          format: date-time
+
+    OrderEvent:
+      type: object
+      description: |
+        One entry of the event log.
+        The schema of `data` depends on `event_type`; the if and then keywords below apply OrderAcceptedData to order.accepted events.
+      required: [event_id, event_type, event_version, occurred_at, data]
+      properties:
+        event_id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Position in the log. Increasing in commit order. Not contiguous. The deduplication key.
+        event_type:
+          type: string
+          description: |
+            Currently always `order.accepted`.
+            New types are added without a version change, so clients must skip events with an unknown event_type and still advance past them.
+          examples: [order.accepted]
+        event_version:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Version of the data schema for this event_type. Currently 1.
+        occurred_at:
+          type: string
+          format: date-time
+          description: When the event occurred; for order.accepted, equal to data.accepted_at. Informational; order by event_id, not by time.
+        data:
+          type: object
+          description: The event's payload. For order.accepted it is OrderAcceptedData.
+      if:
+        required: [event_type]
+        properties:
+          event_type:
+            const: order.accepted
+      then:
+        properties:
+          data:
+            $ref: '#/components/schemas/OrderAcceptedData'
+
+    OrderEventPage:
+      type: object
+      required: [events, next_after, has_more]
+      properties:
+        events:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/OrderEvent'
+        next_after:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            The value to pass as `after` in the next request: the last event_id in this page,
+            or the request's `after` when the page is empty.
+        has_more:
+          type: boolean
+          description: True when more events were available beyond this page at the time of the read.
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details. `code` is the stable, machine-readable identifier.
+      required: [type, title, status, detail, code]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Identifies the problem type and links to its documentation in specs/04-api.md.
+        title:
+          type: string
+          description: Short summary of the problem type. Constant per code.
+        status:
+          type: integer
+          format: int32
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          description: Explanation specific to this occurrence.
+        code:
+          type: string
+          description: |
+            One of validation_error, unknown_sku, order_ref_conflict, order_not_found, sku_not_found,
+            not_found, method_not_allowed, internal_error, service_unavailable.
+            New codes may be added; clients must handle unknown codes by status.
+        errors:
+          type: array
+          description: Present for validation_error and unknown_sku. One entry per offending location.
+          items:
+            $ref: '#/components/schemas/ProblemError'
+
+    ProblemError:
+      type: object
+      description: One offending location. Exactly one of pointer or parameter is present, as the if, then and else keywords below enforce.
+      required: [detail]
+      properties:
+        detail:
+          type: string
+        pointer:
+          type: string
+          description: RFC 6901 JSON Pointer into the request body, in URI fragment form, for example "#/items/0/qty".
+        parameter:
+          type: string
+          description: Name of the offending query parameter.
+      if:
+        required: [pointer]
+      then:
+        not:
+          required: [parameter]
+      else:
+        required: [parameter]
+
+  headers:
+    Location:
+      description: Path of the created order.
+      schema:
+        type: string
+        format: uri-reference
+        examples: [/orders/web-100045]
+    Retry-After:
+      description: Seconds to wait before retrying.
+      schema:
+        type: integer
+        minimum: 1
+        examples: [1]
+
+  responses:
+    InvalidOrder:
+      description: |
+        The body violates the request schema or repeats a SKU (`validation_error`),
+        or a new order references a SKU that is not in the catalogue (`unknown_sku`).
+        `errors` has one entry per offending location, each with a `pointer` into the body.
+        Nothing was stored.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            validationError:
+              summary: A request body that violates the schema
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#validation_error
+                title: Request validation failed
+                status: 422
+                detail: The request does not match the schema.
+                code: validation_error
+                errors:
+                  - detail: Input should be greater than or equal to 1
+                    pointer: '#/items/0/qty'
+            unknownSku:
+              summary: A new order references an unknown SKU
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#unknown_sku
+                title: Unknown SKU
+                status: 422
+                detail: 1 item references a SKU that is not in the catalogue.
+                code: unknown_sku
+                errors:
+                  - detail: Unknown SKU 'XYZ-999'.
+                    pointer: '#/items/1/sku'
+
+    InvalidQuery:
+      description: |
+        A query parameter is invalid (`validation_error`).
+        `errors` has one entry per offending parameter, each with its `parameter` name.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            validationError:
+              summary: A query parameter out of range
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#validation_error
+                title: Request validation failed
+                status: 422
+                detail: The request does not match the schema.
+                code: validation_error
+                errors:
+                  - detail: Input should be less than or equal to 500
+                    parameter: limit
+
+    OrderRefConflict:
+      description: An order with this order_ref exists with different content. Nothing was changed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            conflict:
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#order_ref_conflict
+                title: order_ref already used with different content
+                status: 409
+                detail: Order 'web-100047' already exists with different items or customer_id.
+                code: order_ref_conflict
+
+    OrderNotFound:
+      description: No order has the requested order_ref (`order_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            orderNotFound:
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#order_not_found
+                title: Order not found
+                status: 404
+                detail: No order with order_ref 'web-999999'.
+                code: order_not_found
+
+    SkuNotFound:
+      description: No stock level exists for the requested SKU (`sku_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            skuNotFound:
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#sku_not_found
+                title: SKU not found
+                status: 404
+                detail: No stock level for SKU 'XYZ-999'.
+                code: sku_not_found
+
+    InternalError:
+      description: An unexpected server error. The request may be retried; POST /orders is idempotent.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            internal:
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#internal_error
+                title: Internal server error
+                status: 500
+                detail: The server failed to complete the request.
+                code: internal_error
+
+    ServiceUnavailable:
+      description: The database is unreachable or too slow. Retry after the indicated delay; POST /orders is idempotent.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/Retry-After'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            unavailable:
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#service_unavailable
+                title: Service unavailable
+                status: 503
+                detail: The database is not reachable. Retry later.
+                code: service_unavailable
+
+  examples:
+    AcceptedOrder:
+      summary: An accepted order whose stock is not applied yet
+      value:
+        order_ref: web-100045
+        customer_id: cust-42
+        status: accepted
+        items:
+          - sku: APL-003
+            qty: 1
+            unit_price_cents: 349
+            line_total_cents: 349
+          - sku: BAN-001
+            qty: 2
+            unit_price_cents: 199
+            line_total_cents: 398
+        total_cents: 747
+        accepted_at: '2026-09-21T10:15:03.412907Z'
+        stock_committed_at: null
+
+    StockCommittedOrder:
+      summary: The same order after the stock applier processed it
+      value:
+        order_ref: web-100045
+        customer_id: cust-42
+        status: stock_committed
+        items:
+          - sku: APL-003
+            qty: 1
+            unit_price_cents: 349
+            line_total_cents: 349
+          - sku: BAN-001
+            qty: 2
+            unit_price_cents: 199
+            line_total_cents: 398
+        total_cents: 747
+        accepted_at: '2026-09-21T10:15:03.412907Z'
+        stock_committed_at: '2026-09-21T10:15:03.861270Z'
+
+    EventPage:
+      summary: A page holding one event
+      value:
+        events:
+          - event_id: 1
+            event_type: order.accepted
+            event_version: 1
+            occurred_at: '2026-09-21T10:15:03.412907Z'
+            data:
+              order_ref: web-100045
+              customer_id: cust-42
+              items:
+                - sku: APL-003
+                  qty: 1
+                  unit_price_cents: 349
+                  line_total_cents: 349
+                - sku: BAN-001
+                  qty: 2
+                  unit_price_cents: 199
+                  line_total_cents: 398
+              total_cents: 747
+              accepted_at: '2026-09-21T10:15:03.412907Z'
+        next_after: 1
+        has_more: false
