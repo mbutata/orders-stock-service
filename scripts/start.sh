@@ -4,7 +4,8 @@
 #
 # Usage: scripts/start.sh [--docker] [--fresh]
 #
-# Both processes log to this terminal and to .run/<process>.log, where scripts/demo.sh reads them.
+# Both processes log to this terminal and to .run/<process>.log; scripts/demo.sh reads the stock
+# worker's.
 # The stock worker is never restarted automatically: the demo stops it on purpose and restarts it
 # deliberately. Ctrl-C stops every api and stock-worker recorded in .run/, including one the demo
 # restarted.

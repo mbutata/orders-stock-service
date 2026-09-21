@@ -18,7 +18,7 @@ Start with [SOLUTION.md](SOLUTION.md), a ten-minute read; [specs/](specs/README.
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which also installs Python 3.14 when it is missing.
 - PostgreSQL 14 or newer, installed natively or through Docker Compose.
-- `curl`, and optionally `jq`, for the demo.
+- `curl`, for `scripts/start.sh` and the demo, and optionally `jq`, which only pretty-prints.
 
 ## PostgreSQL
 
