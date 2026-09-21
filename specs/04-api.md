@@ -11,7 +11,7 @@ Where the two disagree, that is a defect in the specification, to be fixed befor
 - Request bodies are strict: unknown members are rejected with `422 validation_error`, so a misspelt field such as `quantity` fails loudly instead of being ignored.
 - Response bodies are open for extension: clients must ignore members they do not recognise.
   New optional members may be added without a version change.
-- Identifiers, money and timestamps follow [02-domain-model.md](02-domain-model.md#conventions): identifiers match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, amounts are integer minor units in `*_cents` fields, and timestamps are RFC 3339 UTC strings.
+- Identifiers, money and timestamps follow [02-domain-model.md](02-domain-model.md#conventions): identifiers in request bodies match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, amounts are integer minor units in `*_cents` fields, and timestamps are RFC 3339 UTC strings.
 - There is no authentication (NG-01).
 - The base URL in local development is `http://127.0.0.1:8000`.
 

@@ -34,7 +34,8 @@ Multi-currency is a non-goal (NG-06); when it is needed, a `currency` column on 
 ### Identifiers
 
 `order_ref`, `customer_id` and `sku` are opaque, case-sensitive strings of 1 to 64 characters.
-The API accepts them only if they match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, which keeps them safe in URL paths without encoding.
+The API accepts them in request bodies only if they match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, so every identifier it stores is safe in a URL path without encoding.
+Path parameters are not validated: a value that matches no order or SKU yields `404`.
 The database enforces the length bound; the character rule is an input-format rule and lives at the API boundary.
 
 ### Time
