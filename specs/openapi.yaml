@@ -80,6 +80,10 @@ paths:
           $ref: '#/components/responses/OrderRefConflict'
         '422':
           $ref: '#/components/responses/UnprocessableContent'
+          description: |
+            The body violates the request schema or repeats a SKU (`validation_error`),
+            or a new order references a SKU that is not in the catalogue (`unknown_sku`).
+            Nothing was stored.
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -199,6 +203,7 @@ paths:
                     has_more: false
         '422':
           $ref: '#/components/responses/UnprocessableContent'
+          description: A query parameter is invalid (`validation_error`).
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -438,7 +443,7 @@ components:
 
     ProblemError:
       type: object
-      description: Exactly one of pointer or parameter is present.
+      description: One offending location. Exactly one of pointer or parameter is present, as the if, then and else keywords below enforce.
       required: [detail]
       properties:
         detail:
@@ -449,6 +454,13 @@ components:
         parameter:
           type: string
           description: Name of the offending query or path parameter.
+      if:
+        required: [pointer]
+      then:
+        not:
+          required: [parameter]
+      else:
+        required: [parameter]
 
   headers:
     Location:
@@ -466,13 +478,17 @@ components:
 
   responses:
     UnprocessableContent:
-      description: The request is malformed, or references an unknown SKU. Nothing was changed.
+      description: |
+        The request is invalid, so nothing was changed.
+        The problem's `code` names the cause and `errors` lists each offending location;
+        each operation's own description says which codes it can return.
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
           examples:
             validationError:
+              summary: A request body that violates the schema
               value:
                 type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#validation_error
                 title: Request validation failed
@@ -482,7 +498,19 @@ components:
                 errors:
                   - detail: Input should be greater than or equal to 1
                     pointer: '#/items/0/qty'
+            queryValidationError:
+              summary: A query parameter out of range
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#validation_error
+                title: Request validation failed
+                status: 422
+                detail: The request does not match the schema.
+                code: validation_error
+                errors:
+                  - detail: Input should be less than or equal to 500
+                    parameter: limit
             unknownSku:
+              summary: 'POST /orders only: a new order references an unknown SKU'
               value:
                 type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#unknown_sku
                 title: Unknown SKU
