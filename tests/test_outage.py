@@ -213,7 +213,7 @@ def test_ac_out_06_overlapping_appliers_apply_each_order_once(
     def applier(index: int) -> None:
         try:
             with connect() as own:
-                barrier.wait()
+                barrier.wait(timeout=10)  # a failed peer breaks the barrier instead of hanging
                 results[index] = drain(own, batch_size=5)
         except BaseException as error:
             errors.append(error)

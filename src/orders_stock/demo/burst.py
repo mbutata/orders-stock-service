@@ -21,6 +21,7 @@ MAX_ATTEMPTS = 5
 BACKOFF_INITIAL = 0.2
 RETRYABLE_STATUSES = {503}
 EXPECTED_STATUSES = (201, 200, 409)
+BARRIER_TIMEOUT = 10.0
 
 # (reference suffix, customer, items, identical submissions in phase 1)
 ORDER_SET: tuple[tuple[str, str, tuple[tuple[str, int], ...], int], ...] = (
@@ -122,8 +123,13 @@ def run_burst(settings: Settings, prefix: str) -> int:
         barrier = threading.Barrier(len(phase_one))
 
         def worker(body: dict[str, Any]) -> None:
-            barrier.wait()
-            record(tallies, lock, body, submit(client, body))
+            response = None
+            try:
+                barrier.wait(BARRIER_TIMEOUT)
+                response = submit(client, body)
+            except Exception as error:  # a broken or timed-out barrier, or any other failure
+                logger.error("burst: %s submission thread failed: %r", body["order_ref"], error)
+            record(tallies, lock, body, response)  # no response counts as a failed submission
 
         threads = [threading.Thread(target=worker, args=(body,)) for body in phase_one]
         for thread in threads:

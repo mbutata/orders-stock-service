@@ -410,7 +410,7 @@ summary: submitted=11 created=6 duplicate=4 conflict=1 failed=0
 The `order_ref` column is left-aligned and as wide as the longest reference or its header, whichever is longer; the other columns are right-aligned under their headers, with two spaces between columns, so the table stays aligned for longer prefixes such as `outage`.
 Which submission of a duplicated `order_ref` wins the race is not deterministic; the counts are.
 Running `burst` again with the same prefix prints `created=0 duplicate=10 conflict=1`.
-The command exits `1` if any submission ends in a status other than 201, 200 or 409, or fails after its retries.
+The command exits `1` if any submission ends in a status other than 201, 200 or 409, fails after its retries, or cannot be sent because its thread failed, for example on a broken or timed-out start barrier.
 
 ### `consume-feed`
 

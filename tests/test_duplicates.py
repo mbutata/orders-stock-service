@@ -24,7 +24,7 @@ def race(live_api: LiveApi, bodies: list[dict[str, Any]]) -> list[httpx.Response
     client = live_api.client()
 
     def post(body: dict[str, Any]) -> httpx.Response:
-        barrier.wait()
+        barrier.wait(timeout=10)  # a broken race raises BrokenBarrierError instead of hanging
         return client.post("/orders", json=body)
 
     with ThreadPoolExecutor(max_workers=len(bodies)) as pool:
