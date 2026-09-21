@@ -4,7 +4,6 @@ The conventions are those of specs/06-acceptance.md, "Test conventions".
 """
 
 import os
-import re
 import socket
 import subprocess
 import sys
@@ -81,12 +80,6 @@ def connect(database_url: str = TEST_DATABASE_URL) -> psycopg.Connection:
     return conn
 
 
-def masked(database_url: str) -> str:
-    """The URL with any password replaced, safe to print."""
-    database_url = re.sub(r"(://[^/@]*?:)[^/@]*@", r"\1***@", database_url)
-    return re.sub(r"(password=)[^&\s]*", r"\1***", database_url)
-
-
 def reset_schema(conn: psycopg.Connection) -> None:
     conn.execute("DROP SCHEMA public CASCADE")
     conn.execute("CREATE SCHEMA public")
@@ -104,15 +97,19 @@ def reset_data(conn: psycopg.Connection, *, seed: bool) -> None:
 @pytest.fixture(scope="session", autouse=True)
 def database() -> str:
     """Once per session: refuse a non-test database, recreate the schema, apply migrations."""
-    name = conninfo_to_dict(TEST_DATABASE_URL).get("dbname", "")
+    params = conninfo_to_dict(TEST_DATABASE_URL)
+    name = params.get("dbname", "")
     if not str(name).endswith("_test"):
         pytest.exit(f"TEST_DATABASE_URL must name a database ending in _test, not {name!r}")
     try:
         conn = connect()
     except psycopg.OperationalError as error:
+        target = " ".join(
+            f"{key}={params[key]}" for key in ("user", "host", "port", "dbname") if key in params
+        )
         cause = next(iter(str(error).splitlines()), type(error).__name__)
         pytest.exit(
-            f"The test database {masked(TEST_DATABASE_URL)} is not reachable ({cause}). "
+            f"The test database {target!r} is not reachable ({cause}). "
             "Start PostgreSQL or set TEST_DATABASE_URL; see the PostgreSQL section of README.md."
         )
     with conn:
