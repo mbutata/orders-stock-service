@@ -30,7 +30,11 @@ The demonstration walkthrough for the recorded demo is [07-demo.md](07-demo.md).
 - **Commands.**
   Scenarios that run an `orders-stock` command run it as a subprocess with `DATABASE_URL` set to the test database and, where needed, `API_URL` set to the `live_api` server.
 - **Contract checking.**
-  Every HTTP response a test receives from the API, through any `TestClient` or through `live_api`, is checked against [openapi.yaml](openapi.yaml) as AC-API-01 specifies.
+  Every HTTP response a test receives from the API, through any `TestClient` or through `live_api`, is checked against [openapi.yaml](openapi.yaml) as AC-API-01 specifies when it is received, so a violation fails the test during which it occurred.
+  Each checked response is also recorded as an observed pair of operation and status code.
+  A `pytest_collection_modifyitems` hook in `tests/conftest.py` moves the AC-API-01 test to the end of the collected items, so it runs after every test that produces responses.
+  Its coverage clause, that every declared pair was observed, is asserted only when the run selects the whole suite, with no path, `-k`, `-m` or deselection narrowing it, because a narrower run cannot observe every pair.
+  The per-response clauses apply in every run.
 - **Fault injection.**
   Where a scenario injects a fault, the test replaces one of the functions below with `pytest`'s `monkeypatch`.
   The implementation keeps them as module-level names and calls them through their module, so a replacement takes effect.
@@ -457,7 +461,7 @@ Traces: REQ-API-01.
 - **Given** every HTTP response a test receives from the API during the test session
 - **Then** each response to an operation declared in [openapi.yaml](openapi.yaml) has a status code declared for that operation, and its body validates against the declared schema for that status and content type
 - **And** each response to an undeclared path or method, other than `/openapi.json` and `/docs` (AC-API-05), has content type `application/problem+json` and a body that validates against `components/schemas/Problem`
-- **And** at the end of the session, every declared pair of operation and status code has been observed at least once.
+- **And** when the run selects the whole suite, every declared pair of operation and status code has been observed at least once by the time this test runs, which is last, as [Contract checking](#test-conventions) describes.
 
 ### AC-API-02 - Framework errors use the problem shape
 

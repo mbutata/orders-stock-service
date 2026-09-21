@@ -180,7 +180,7 @@ src/orders_stock/
         burst.py
         feed_consumer.py
 tests/
-    conftest.py             database, app, live server and subprocess fixtures
+    conftest.py             database, app, live server and subprocess fixtures, and the hook that runs AC-API-01 last
     contract.py             validates responses against specs/openapi.yaml
     test_orders.py          AC-ORD-*
     test_duplicates.py      AC-DUP-*
