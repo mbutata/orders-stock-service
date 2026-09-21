@@ -96,11 +96,23 @@ def reset_data(conn: psycopg.Connection, *, seed: bool) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def database() -> str:
-    """Once per session: refuse a non-test database, recreate the schema, apply migrations."""
-    name = conninfo_to_dict(TEST_DATABASE_URL).get("dbname", "")
+    """Once per session: refuse a non-test or unreachable database, recreate the schema, migrate."""
+    params = conninfo_to_dict(TEST_DATABASE_URL)
+    name = params.get("dbname", "")
     if not str(name).endswith("_test"):
         pytest.exit(f"TEST_DATABASE_URL must name a database ending in _test, not {name!r}")
-    with connect() as conn:
+    try:
+        conn = connect()
+    except psycopg.OperationalError as error:
+        target = " ".join(
+            f"{key}={params[key]}" for key in ("user", "host", "port", "dbname") if key in params
+        )
+        cause = next(iter(str(error).splitlines()), type(error).__name__)
+        pytest.exit(
+            f"The test database {target!r} is not reachable ({cause}). "
+            "Start PostgreSQL or set TEST_DATABASE_URL; see the PostgreSQL section of README.md."
+        )
+    with conn:
         reset_schema(conn)
     apply_migrations(TEST_DATABASE_URL)
     return TEST_DATABASE_URL

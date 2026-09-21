@@ -9,6 +9,8 @@ An order-intake and stock service in Python and PostgreSQL.
 
 ## Design
 
+Start with [SOLUTION.md](SOLUTION.md), a ten-minute read; [specs/](specs/README.md) is the detailed reference.
+
 - [SOLUTION.md](SOLUTION.md): the design narrative, its trade-offs, and implementation notes.
 - [specs/](specs/README.md): the specification the implementation is built against: requirements, domain model and schema, architecture, the HTTP contract with its [OpenAPI 3.1 document](specs/openapi.yaml), reliability and consistency, acceptance scenarios, the demo script, and architecture decision records.
 
@@ -24,6 +26,8 @@ The default connection settings expect PostgreSQL on `localhost:5432` with a rol
 Set `DATABASE_URL` and `TEST_DATABASE_URL` to use anything else; every variable is listed in [Runtime configuration](specs/03-architecture.md#runtime-configuration).
 
 ### macOS (Homebrew)
+
+If PostgreSQL 14 or newer is already running, skip the first three lines and run only the role and database commands.
 
 ```sh
 brew install postgresql@17
@@ -72,6 +76,7 @@ uv run orders-stock consume-feed     # terminal 3, optional: prints order.accept
 uv run orders-stock burst            # submits a burst of orders, including duplicates
 ```
 
+On macOS the first `migrate` can pause for several seconds while the migration tool resolves the host name; it is not stuck.
 Every command is described in [Command-line interface](specs/03-architecture.md#command-line-interface).
 
 ## Demo
