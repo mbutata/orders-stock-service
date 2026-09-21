@@ -15,6 +15,7 @@ The demonstration walkthrough for the recorded demo is [07-demo.md](07-demo.md).
   Nothing mocks the database.
 - **Schema.**
   Once per session, the suite drops and recreates schema `public` and applies the migrations with the same code as `orders-stock migrate`.
+  This needs the `orders_stock` role to own `public` in the test database, which the setup in [03-architecture.md](03-architecture.md#running-locally) arranges.
 - **Isolation.**
   Before each test: `TRUNCATE order_events, order_items, orders, stock_levels, products RESTART IDENTITY`, set the `stock-applier` offset to 0, then seed the demo catalogue unless the scenario says otherwise.
 - **`client` fixture.**
@@ -29,7 +30,7 @@ The demonstration walkthrough for the recorded demo is [07-demo.md](07-demo.md).
 - **Commands.**
   Scenarios that run an `orders-stock` command run it as a subprocess with `DATABASE_URL` set to the test database and, where needed, `API_URL` set to the `live_api` server.
 - **Contract checking.**
-  Every HTTP response a test receives from the API, through any `TestClient` or through `live_api`, is validated against [openapi.yaml](openapi.yaml) (AC-API-01).
+  Every HTTP response a test receives from the API, through any `TestClient` or through `live_api`, is checked against [openapi.yaml](openapi.yaml) as AC-API-01 specifies.
 - **Fault injection.**
   Where a scenario injects a fault, the test replaces one of the functions below with `pytest`'s `monkeypatch`.
   The implementation keeps them as module-level names and calls them through their module, so a replacement takes effect.
@@ -314,7 +315,7 @@ Traces: REQ-OUT-02, REQ-STK-05.
 Traces: REQ-OUT-02.
 
 - **Given** run A accepts the six orders of the `burst` order set one at a time, draining the applier after each
-- **And** run B, on a freshly reset database, accepts the same six orders with the applier stopped, then drains it once
+- **And** run B, after the database is reset as between tests, accepts the same six orders with the applier stopped, then drains it once
 - **Then** `on_hand` for every SKU is identical after run A and run B, and equals the values in AC-STK-05.
 
 ### AC-OUT-04 - A crash in the middle of a batch leaves no partial effect
@@ -451,7 +452,8 @@ Traces: REQ-FEED-05.
 Traces: REQ-API-01.
 
 - **Given** every HTTP response a test receives from the API during the test session
-- **Then** each response's status code is declared for its operation in [openapi.yaml](openapi.yaml), and its body validates against the declared schema for that status and content type
+- **Then** each response to an operation declared in [openapi.yaml](openapi.yaml) has a status code declared for that operation, and its body validates against the declared schema for that status and content type
+- **And** each response to an undeclared path or method, other than `/openapi.json` and `/docs` (AC-API-05), has content type `application/problem+json` and a body that validates against `components/schemas/Problem`
 - **And** at the end of the session, every declared pair of operation and status code has been observed at least once.
 
 ### AC-API-02 - Framework errors use the problem shape
@@ -467,7 +469,7 @@ Traces: REQ-API-02.
 
 Traces: REQ-API-03.
 
-- **Given** an app created with `DATABASE_URL` pointing at a local port where nothing listens, and a pool acquisition timeout of 1 second
+- **Given** an app created by `create_app` with settings whose `DATABASE_URL` points at a local port where nothing listens and whose `DATABASE_POOL_TIMEOUT` is 1 second
 - **Then** the app starts
 - **And** each of `POST /orders` with O1, `GET /orders/web-100045`, `GET /stock/BAN-001` and `GET /order-events` returns `503` with `code` `service_unavailable` and `Retry-After: 1`.
 
@@ -509,10 +511,7 @@ Traces: REQ-OPS-05, REQ-CAT-01, REQ-STK-01.
 - **Then** it exits 0, prints the catalogue table of [03-architecture.md](03-architecture.md#seed), and prints `seed: inserted 4 product(s)`
 - **Given** O1 was then accepted and the applier drained
 - **When** `orders-stock seed` runs again
-- **Then** it prints `seed: inserted 0 product(s)`, `BAN-001` still has `on_hand` 48, and `web-100045` still exists
-- **When** `orders-stock seed --reset` runs
-- **Then** no orders or events exist, `on_hand` is back to the initial values, and the offset is 0
-- **And** the next accepted order's event has `event_id` 1.
+- **Then** it prints `seed: inserted 0 product(s)`, `BAN-001` still has `on_hand` 48, `web-100045` and its event still exist, and the offset is still 1.
 
 ### AC-OPS-03 - The burst command
 

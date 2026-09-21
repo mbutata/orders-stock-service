@@ -79,7 +79,7 @@ Each section is one decision, with the chosen option listed first.
 
 - **httpx** for the demonstration clients and the tests.
 - **argparse** for the command-line interface; Click or Typer would be a dependency for six subcommands.
-- **Environment variables read into a frozen dataclass** for configuration; pydantic-settings would be a dependency for six variables.
+- **Environment variables read into a frozen dataclass** for configuration; pydantic-settings would be a dependency for seven variables.
 - **ruff** for linting and formatting, **mypy** in strict mode with the Pydantic plugin for types, and **import-linter** for the dependency rules.
 - **PostgreSQL 14 or newer**; `compose.yaml` pins the `postgres:17` image.
 - **GitHub Actions** runs the same commands as a developer, against a PostgreSQL 17 service container.

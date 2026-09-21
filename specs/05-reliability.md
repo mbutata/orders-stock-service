@@ -197,7 +197,7 @@ SELECT event_id, event_type, event_version, order_ref, occurred_at, payload
 
 -- 3. Transition the batch's orders (Orders.mark_stock_committed).
 UPDATE orders
-   SET status = 'stock_committed', stock_committed_at = now()
+   SET status = 'stock_committed', stock_committed_at = statement_timestamp()
  WHERE order_ref = ANY($order_refs) AND status = 'accepted'
 RETURNING order_ref;
 
@@ -217,6 +217,9 @@ UPDATE consumer_offsets
 
 COMMIT;
 ```
+
+`stock_committed_at` takes `statement_timestamp()` rather than `now()`, which is the start of the transaction.
+Step 3 starts after step 2 read events that were already committed, so the timestamp is never earlier than the `accepted_at` of an order in the batch, even when step 1 waited for another applier.
 
 The applier skips events whose `event_type` it does not handle and still advances past them.
 It raises `StockInvariantViolation` for an `order.accepted` event with an `event_version` above 1.
@@ -317,7 +320,7 @@ The guarantees offered to consumers of `GET /order-events`:
 - **No duplicates in the log.**
   Duplicate submissions never append; a consumer sees an event twice only by re-reading it.
 - **Replay.**
-  Any consumer can re-read from `after=0` at any time; the append-only trigger guarantees it reads the same events.
+  Any consumer can re-read from `after=0` at any time and reads the same events, because events are never updated or deleted (INV-EVT-2).
 - **Independence.**
   The feed is served by `api` and is unaffected by the stock applier.
 

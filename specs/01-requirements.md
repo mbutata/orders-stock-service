@@ -117,13 +117,15 @@ An event's content MUST NOT change after it is appended, and events MUST NOT be 
 Verified by: AC-FEED-02, AC-FEED-05.
 
 **REQ-FEED-05 - A demonstration consumer.**
-A `consume-feed` command MUST poll the feed, print one line per event to stdout, persist its cursor after each printed event, and resume from that cursor after a restart.
+A `consume-feed` command MUST poll the feed, print one line per `order.accepted` event to stdout, persist its cursor only after the event's line has been flushed, and resume from that cursor after a restart.
 Verified by: AC-FEED-07, D-04, D-09.
 
 ### HTTP contract
 
 **REQ-API-01 - The implementation conforms to the committed contract.**
-Every response body MUST validate against the schema that [openapi.yaml](openapi.yaml) declares for that operation and status code, and the service MUST publish that document as its own OpenAPI description.
+Every response to an operation that [openapi.yaml](openapi.yaml) declares MUST have a status code declared for that operation and a body that validates against the schema declared for that status code.
+Every response to a path or method that the document does not declare, other than the documentation routes `/openapi.json` and `/docs`, MUST be `application/problem+json` and validate against the document's `Problem` schema.
+The service MUST publish that document as its own OpenAPI description.
 Verified by: AC-API-01, AC-API-05.
 
 **REQ-API-02 - One error shape.**
@@ -159,7 +161,7 @@ Verified by: AC-OPS-03, D-03.
 **REQ-OPS-05 - A seed command.**
 A `seed` command MUST create the demo catalogue and initial stock levels.
 Running it again MUST NOT change existing products or stock levels.
-With `--reset` it MUST first remove all orders, events, products and stock levels, and reset the stock applier's offset.
+It MUST only insert: it never updates, deletes or truncates anything.
 Verified by: AC-OPS-02.
 
 ### Structure

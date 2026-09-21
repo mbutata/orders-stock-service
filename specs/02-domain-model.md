@@ -68,7 +68,7 @@ Invariant IDs are referenced by the constraint table and by the acceptance scena
 | `items` | list of OrderItem | One or more, at most one per SKU. |
 | `total_cents` | bigint | Sum of the items' line totals. |
 | `accepted_at` | timestamptz | When the accepting transaction started. |
-| `stock_committed_at` | timestamptz or null | When the stock applier committed the order's stock. |
+| `stock_committed_at` | timestamptz or null | When the stock applier applied the order's stock; never earlier than `accepted_at`. |
 
 An OrderItem has `sku`, `qty`, `unit_price_cents` and `line_total_cents`.
 
@@ -120,7 +120,7 @@ Consumers must not assume contiguity; INV-EVT-3 is the property they rely on.
 | `updated_at` | timestamptz | Last change. |
 
 - **INV-OFF-1**: An order is `stock_committed` if and only if its event's `event_id <= last_event_id` of `stock-applier`.
-- **INV-OFF-2**: `last_event_id` only increases, except when `seed --reset` clears all data.
+- **INV-OFF-2**: `last_event_id` only increases.
 
 INV-STK-2 and INV-OFF-1 together are what makes `as_of_event_id` meaningful: `on_hand` reflects exactly the orders whose events are at or below the offset.
 
@@ -311,7 +311,7 @@ Input-format rules stay at the API boundary.
 | `orders_status_known` | INV-ORD-8 (closed set of states) | Rejects any state the lifecycle does not define. |
 | `products_price_non_negative`, `order_items_unit_price_non_negative`, `orders_total_non_negative` | INV-CAT-2 and the sign of derived amounts | Cheap guards against a seed or manual write producing negative money. |
 | `order_events_one_per_order_and_type` | INV-EVT-1 (at most one event) | A backstop for a code defect that would append twice; consumers would otherwise see the order twice. |
-| `order_events_append_only` trigger | INV-EVT-2 | External consumers replay the log and cache what they read, so a mutation from any code path or operator is a contract breach. A trigger is the only way to stop it for every writer. |
+| `order_events_append_only` trigger | INV-EVT-2 | External consumers replay the log and cache what they read, so a mutation from any code path or operator is a contract breach. The row-level trigger rejects every `UPDATE` and `DELETE`, whoever issues it. It does not intercept `TRUNCATE`, which fires no row-level trigger; no command of the system truncates the log, and only the test suite does, between tests on its own database. |
 | `order_events` identity plus the append lock | INV-EVT-3 | Commit order is a property of concurrent transactions, which only the database can serialize; see [05-reliability.md](05-reliability.md#commit-ordered-event-log). |
 | Foreign keys from `order_items` and `order_events` to `orders` | Referential integrity within Orders | Items and events never outlive or precede their order. |
 | Foreign keys from `order_items` and `stock_levels` to `products` | Items and stock refer to real products | The catalogue is shared reference data (see [Table ownership](#table-ownership)). |

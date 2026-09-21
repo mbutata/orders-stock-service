@@ -224,7 +224,7 @@ Validation errors from the web framework are translated into this shape; a body 
 | `not_found` | 404 | Resource not found | No route matches the path. |
 | `method_not_allowed` | 405 | Method not allowed | The path exists but not with this method. |
 | `internal_error` | 500 | Internal server error | An unexpected failure. The detail never includes stack traces or SQL. |
-| `service_unavailable` | 503 | Service unavailable | The database is unreachable, no connection was available within 5 seconds, or a statement exceeded its 5-second timeout. `Retry-After: 1`. |
+| `service_unavailable` | 503 | Service unavailable | The database is unreachable, no connection was available within the pool timeout (5 seconds by default), or a statement exceeded its 5-second timeout. `Retry-After: 1`. |
 
 ### Problem types
 
@@ -271,7 +271,7 @@ The request may be retried; `POST /orders` is idempotent, so a retry cannot doub
 
 #### service_unavailable
 
-PostgreSQL is unreachable, the connection pool had no connection within 5 seconds, or a statement exceeded its timeout.
+PostgreSQL is unreachable, the connection pool had no connection within its timeout, 5 seconds by default, or a statement exceeded its timeout.
 Retry after `Retry-After` seconds.
 
 ## Versioning and compatibility
@@ -282,5 +282,5 @@ An incompatible change to a request or response would be published under new pat
 
 ## Conformance
 
-REQ-API-01 makes this contract executable: the test suite validates every response body it receives against the schema that [openapi.yaml](openapi.yaml) declares for that operation and status code (AC-API-01).
+REQ-API-01 makes this contract executable: the test suite validates every response body it receives against the schema that [openapi.yaml](openapi.yaml) declares for that operation and status code, and every response to an undeclared path or method against the `Problem` schema (AC-API-01).
 The running service serves the committed document at `/openapi.json`, and Swagger UI at `/docs` renders it; the framework's generated schema is not used, so there is exactly one contract.

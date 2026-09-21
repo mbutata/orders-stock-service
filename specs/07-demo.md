@@ -14,7 +14,7 @@ Four terminals in the repository root:
 - **T4** runs one-shot commands.
 
 `curl` is used for HTTP; `jq` is optional and only pretty-prints.
-Start from a database with no application data; D-02 resets it.
+The run starts from a new database: D-01 drops and recreates it, then applies the migrations.
 
 ## Steps
 
@@ -25,18 +25,22 @@ Traces: REQ-OPS-02, REQ-OPS-03.
 In T4:
 
 ```sh
-docker compose up -d          # or use a native PostgreSQL; see README.md
+docker compose up -d --wait   # or use a native PostgreSQL; see README.md
+docker compose exec postgres dropdb -U orders_stock --if-exists orders_stock
+docker compose exec postgres createdb -U orders_stock orders_stock
 uv sync
 uv run orders-stock migrate
 ```
 
-Expected: `applied 1 migration(s)` (or `applied 0 migration(s)` if the schema already exists).
+With native PostgreSQL, recreate the database with the native commands in [Starting clean](03-architecture.md#running-locally) instead of the two `docker compose exec` lines.
+
+Expected: `applied 1 migration(s)`.
 
 ### D-02 - Seed and start the processes
 
 Traces: REQ-OPS-05.
 
-In T4, `uv run orders-stock seed --reset` prints:
+In T4, `uv run orders-stock seed` prints:
 
 ```text
 sku      name              price_cents  on_hand

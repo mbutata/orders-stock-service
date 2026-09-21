@@ -132,11 +132,12 @@ A function marked "own transaction" opens and commits its transaction on that co
 | `orders_stock.orders` | `orders_stock.catalog` public interface, the kernel |
 | `orders_stock.inventory` | `orders_stock.orders` public interface, the kernel |
 | `orders_stock.api` | `orders_stock.orders`, `orders_stock.inventory`, the kernel |
-| `orders_stock.demo.seed` | `orders_stock.catalog`, `orders_stock.inventory`, the kernel |
+| `orders_stock.demo.seed_data` | `orders_stock.catalog` public interface |
+| `orders_stock.demo.seed` | `orders_stock.demo.seed_data`, `orders_stock.catalog`, `orders_stock.inventory`, the kernel |
 | `orders_stock.demo.burst`, `orders_stock.demo.feed_consumer` | `orders_stock.config` and `httpx` only; they are HTTP clients and see the system exactly as another team would |
 | `orders_stock.cli`, `orders_stock.migrate` | Anything |
 
-No module may import `orders_stock.cli` or `orders_stock.api`.
+No module other than `orders_stock.cli` may import `orders_stock.api`, and no module may import `orders_stock.cli`.
 These rules are encoded as import-linter contracts in `pyproject.toml` and checked by AC-ARCH-01.
 
 ## Source layout
@@ -220,12 +221,16 @@ Install it with the platform's package manager, for example `brew install postgr
 psql -d postgres -c "CREATE ROLE orders_stock LOGIN CREATEDB PASSWORD 'orders_stock'"
 createdb -O orders_stock orders_stock
 createdb -O orders_stock orders_stock_test
+psql -d orders_stock_test -c "ALTER SCHEMA public OWNER TO orders_stock"
 ```
 
 On Linux these commands run as the `postgres` operating-system user, for example prefixed with `sudo -u postgres`.
+The last command lets the test suite drop and recreate the `public` schema of the test database: PostgreSQL 15 and newer give that schema to the database owner, but PostgreSQL 14 leaves it with the bootstrap superuser.
 
 **Docker Compose, optional.**
-`docker compose up -d` starts the `postgres:17` image on port 5432 with user, password and database `orders_stock`, and an init script, `docker/initdb/create-test-database.sql`, creates `orders_stock_test`.
+`docker compose up -d --wait` starts the `postgres:17` image as service `postgres` on port 5432 with user, password and database `orders_stock`, and an init script, `docker/initdb/create-test-database.sql`, creates `orders_stock_test`.
+The service's health check runs `pg_isready` over TCP, so `--wait` returns only once PostgreSQL accepts connections.
+There `orders_stock` is the superuser, so it needs no further setup.
 Compose provisions PostgreSQL only; the application always runs natively (NG-15).
 
 **The system.**
@@ -238,11 +243,31 @@ uv run orders-stock api            # terminal 1
 uv run orders-stock stock-worker   # terminal 2
 ```
 
+**Starting clean.**
+`seed` only inserts, so a clean run, such as the recorded demo, starts from a new database.
+Stop `api`, `stock-worker` and `consume-feed`, drop and recreate the database, then apply the migrations and seed as above.
+With native PostgreSQL, run these as the user that created the databases:
+
+```sh
+dropdb --if-exists orders_stock
+createdb -O orders_stock orders_stock
+```
+
+With Docker Compose:
+
+```sh
+docker compose exec postgres dropdb -U orders_stock --if-exists orders_stock
+docker compose exec postgres createdb -U orders_stock orders_stock
+```
+
+Event IDs start again at 1 in the new database, so start `consume-feed` with `--from-start`.
+
 ## Runtime configuration
 
 | Variable | Default | Used by |
 | --- | --- | --- |
 | `DATABASE_URL` | `postgresql://orders_stock:orders_stock@localhost:5432/orders_stock` | `api`, `stock-worker`, `migrate`, `seed` |
+| `DATABASE_POOL_TIMEOUT` | `5` (seconds) | `api`, `stock-worker` |
 | `API_URL` | `http://127.0.0.1:8000` | `burst`, `consume-feed` |
 | `STOCK_WORKER_BATCH_SIZE` | `100` | `stock-worker` |
 | `STOCK_WORKER_POLL_INTERVAL` | `0.5` (seconds) | `stock-worker` |
@@ -254,7 +279,7 @@ Settings are read once at start-up into a frozen dataclass; there is no configur
 
 ### Database connections
 
-- Connections come from a `psycopg_pool.ConnectionPool`: `min_size=1`, `max_size=10` for `api` and `max_size=1` for `stock-worker`, `timeout=5` seconds to acquire, and `check=ConnectionPool.check_connection` so that a connection broken by a PostgreSQL restart is replaced before use.
+- Connections come from a `psycopg_pool.ConnectionPool`: `min_size=1`, `max_size=10` for `api` and `max_size=1` for `stock-worker`, `timeout` set from `DATABASE_POOL_TIMEOUT` to bound the wait to acquire a connection, and `check=ConnectionPool.check_connection` so that a connection broken by a PostgreSQL restart is replaced before use.
 - The pool is opened with `wait=False`, so `api` starts even when PostgreSQL is down (REQ-API-03).
 - Every connection is configured with autocommit off, isolation level `READ COMMITTED` set explicitly rather than inherited from server defaults, `TimeZone=UTC`, `statement_timeout=5s`, and `application_name` set to `orders-stock-api` or `orders-stock-stock-worker`.
 - Errors of class `psycopg.OperationalError`, which includes connection failures, pool acquisition timeouts and statement timeouts, are mapped to `503 service_unavailable` in `api` and to a retry with backoff in `stock-worker`.
@@ -306,8 +331,9 @@ Runs the stock worker loop until `SIGINT` or `SIGTERM`.
 
 ### `seed`
 
-Usage: `orders-stock seed [--reset]`.
-In one transaction: with `--reset`, first `TRUNCATE order_events, order_items, orders, stock_levels, products RESTART IDENTITY` and set the `stock-applier` offset to 0; then insert every demo product and its stock level that does not exist yet.
+Usage: `orders-stock seed`.
+In one transaction, inserts every demo product and its stock level that does not exist yet.
+It only inserts: it never updates, deletes or truncates anything.
 Prints the catalogue with current stock:
 
 ```text
@@ -328,8 +354,7 @@ The demo catalogue is fixed:
 | `BRD-004` | Sourdough 800g | 425 | 20 |
 | `MLK-002` | Whole milk 1L | 115 | 30 |
 
-`seed --reset` is for repeatable demos; it is meant to run while `api` and `stock-worker` are stopped.
-After a reset, run `consume-feed --from-start`, because event IDs restart at 1.
+A repeatable demo starts from a new database instead, as described in [Running locally](#running-locally).
 
 ### `burst`
 
@@ -371,7 +396,11 @@ The command exits `1` if any submission ends in a status other than 201, 200 or 
 
 Usage: `orders-stock consume-feed [--cursor-file .feed-cursor] [--from-start] [--poll-interval 1.0]`.
 Polls `GET /order-events?after=<cursor>&limit=100`.
-For each event it prints one line to stdout, then persists the event's ID as the new cursor.
+For each `order.accepted` event it writes one line to stdout and flushes it, as `print(..., flush=True)` does, and only then persists the event's ID as the new cursor.
+The flush matters when stdout is a pipe or a file, which Python buffers: without it, a crash after saving the cursor would lose lines the cursor has already passed.
+Other events follow the [consumer obligations](04-api.md#consumer-obligations).
+An event with an unknown `event_type` prints nothing, and its ID is persisted as the cursor.
+An `order.accepted` event with an `event_version` above 1 is not skipped: the consumer logs `consume-feed: stopping at event_id=<id>: unsupported event_version=<v>` to stderr and exits with status 1, leaving the cursor before that event.
 The cursor file holds one decimal integer and is replaced atomically: write a temporary file in the same directory, `fsync`, then `os.replace`.
 `--from-start` ignores the cursor file and starts from 0.
 When a page has `has_more: true` it polls again immediately; otherwise it waits `--poll-interval` seconds.
@@ -420,7 +449,7 @@ sequenceDiagram
     X->>A: GET /order-events?after=0
     A->>DB: SELECT events after 0
     A-->>X: 200, event 1, next_after 1
-    Note left of X: print line, then persist cursor 1
+    Note left of X: print and flush line, then persist cursor 1
 ```
 
 ### Unhappy path 1: duplicate submissions
