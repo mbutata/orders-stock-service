@@ -215,7 +215,19 @@ The system needs Python tooling (`uv`) and PostgreSQL 14 or newer, and nothing e
 The default `DATABASE_URL` works unchanged with either way of providing PostgreSQL.
 
 **Native PostgreSQL.**
-Install it with the platform's package manager, for example `brew install postgresql@17` on macOS or the distribution package on Linux, then create the role and databases:
+Install it with the platform's package manager, then make sure the server is running and its client tools (`psql`, `createdb`, `dropdb`) are on `PATH`.
+On macOS, Homebrew's `postgresql@17` is keg-only, so its client tools are not linked onto `PATH`, and installing it does not start the server:
+
+```sh
+brew install postgresql@17
+export PATH="$(brew --prefix postgresql@17)/bin:$PATH"
+brew services start postgresql@17
+```
+
+The `export` lasts only for the current shell, so repeat it, or add it to the shell profile, in any terminal that later runs the client tools.
+On Linux, install the distribution package and make sure its service is running: Debian and Ubuntu start it on install, while other distributions may first need the cluster initialized and the service started, as their package documentation describes.
+
+With the server running, create the role and databases:
 
 ```sh
 psql -d postgres -c "CREATE ROLE orders_stock LOGIN CREATEDB PASSWORD 'orders_stock'"
@@ -246,7 +258,7 @@ uv run orders-stock stock-worker   # terminal 2
 **Starting clean.**
 `seed` only inserts, so a clean run, such as the recorded demo, starts from a new database.
 Stop `api`, `stock-worker` and `consume-feed`, drop and recreate the database, then apply the migrations and seed as above.
-With native PostgreSQL, run these as the user that created the databases:
+With native PostgreSQL, run these as the user that created the databases, with the server running and its client tools on `PATH` as described above:
 
 ```sh
 dropdb --if-exists orders_stock
@@ -388,6 +400,7 @@ web-100050          1    1    0    0          850
 summary: submitted=11 created=6 duplicate=4 conflict=1 failed=0
 ```
 
+The `order_ref` column is left-aligned and as wide as the longest reference or its header, whichever is longer; the other columns are right-aligned under their headers, with two spaces between columns, so the table stays aligned for longer prefixes such as `outage`.
 Which submission of a duplicated `order_ref` wins the race is not deterministic; the counts are.
 Running `burst` again with the same prefix prints `created=0 duplicate=10 conflict=1`.
 The command exits `1` if any submission ends in a status other than 201, 200 or 409, or fails after its retries.

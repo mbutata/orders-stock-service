@@ -35,7 +35,8 @@ uv sync
 uv run orders-stock migrate
 ```
 
-With native PostgreSQL, recreate the database with the native commands in [Starting clean](03-architecture.md#running-locally) instead of the two `docker compose exec` lines.
+With native PostgreSQL, first make sure the server is running and its client tools are on `PATH` in T4, as [Running locally](03-architecture.md#running-locally) describes.
+Then recreate the database with the native commands in [Starting clean](03-architecture.md#running-locally) instead of the two `docker compose exec` lines.
 
 Expected: `applied 1 migration(s)`.
 

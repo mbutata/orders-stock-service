@@ -293,7 +293,8 @@ CREATE TABLE consumer_offsets (
 INSERT INTO consumer_offsets (consumer) VALUES ('stock-applier');
 ```
 
-The DDL requires PostgreSQL 14 or newer; stored generated columns and identity columns are the newest features it uses.
+The DDL requires PostgreSQL 12 or newer, because stored generated columns are the newest feature it uses.
+The project supports and verifies PostgreSQL 14 or newer ([ADR-0008](adr/0008-technology-stack.md)).
 Migrations are forward-only; there are no rollback scripts, because a correction is a new migration.
 
 ### Constraints and the invariants they enforce
