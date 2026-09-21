@@ -22,7 +22,10 @@ The run starts from a new database: D-01 drops and recreates it, then applies th
 
 Traces: REQ-OPS-02, REQ-OPS-03.
 
-In T4:
+First stop any `api`, `stock-worker` and `consume-feed` still running in T1 to T3 from a previous take, as [Starting clean](03-architecture.md#running-locally) requires.
+`dropdb` fails while `api` or `stock-worker` is connected, and a consumer left running would keep the previous take's cursor.
+
+Then, in T4:
 
 ```sh
 docker compose up -d --wait   # or use a native PostgreSQL; see README.md

@@ -340,13 +340,16 @@ Traces: REQ-OUT-03, REQ-OPS-01.
 - **And** a test connection holds `SELECT 1 FROM stock_levels WHERE sku = 'APL-003' FOR UPDATE` in an open transaction
 - **When** `orders-stock stock-worker` is started as a subprocess
 - **And** `pg_stat_activity` shows its session, `application_name` `orders-stock-stock-worker`, waiting with `wait_event_type` `Lock`; it has locked the offset and transitioned the order, and is blocked on the `APL-003` row
+- **And** the test records that session's `pid`
 - **And** the subprocess is killed with `SIGKILL`
 - **And** the test connection rolls back
-- **Then** within 5 seconds the killed session is gone from `pg_stat_activity`
+- **Then** within 5 seconds `pg_stat_activity` has no session with the recorded `pid`
 - **And** `on_hand` is 50 for `BAN-001` and 40 for `APL-003`, `web-100045` is `accepted`, and the offset is 0
 - **When** a new `stock-worker` subprocess runs until the offset is 1, then receives `SIGTERM`
 - **Then** it exits with status 0 after logging `stock-worker stopped: offset=1`
 - **And** `on_hand` is 48 for `BAN-001` and 39 for `APL-003`, and `web-100045` is `stock_committed`.
+
+Every `pg_stat_activity` query in this scenario filters by `datname = current_database()`: the view is cluster-wide, and a `stock-worker` connected to another database, such as the demo's, has the same `application_name`.
 
 ### AC-OUT-06 - Overlapping appliers apply each order once
 
@@ -402,7 +405,7 @@ Traces: REQ-FEED-03.
 - **And** acceptance B of `web-100046` (`cust-7`, `MLK-002` x4) is started in a second thread
 - **When** the feed is read with `after=0`
 - **Then** it returns no events
-- **And** `pg_locks` shows one ungranted lock of type `advisory`
+- **And** `pg_locks` shows one ungranted lock of type `advisory` whose `database` is the OID of the test database
 - **When** A is released and both threads finish
 - **Then** the feed returns the event of `web-100045` and then the event of `web-100046`, with ascending `event_id`s.
 
