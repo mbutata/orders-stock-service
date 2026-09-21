@@ -58,3 +58,196 @@ addopts = ["-ra", "--strict-markers"]
 markers = [
     "no_seed: start the scenario from a migrated, empty database instead of the demo catalogue",
 ]
+
+# The dependency rules of specs/03-architecture.md, one contract or more per row.
+# Checked by `uv run lint-imports` and by AC-ARCH-01 in tests/test_architecture.py.
+[tool.importlinter]
+root_package = "orders_stock"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "kernel-independent"
+name = "kernel: config, db and problems do not import each other"
+type = "independence"
+modules = ["orders_stock.config", "orders_stock.db", "orders_stock.problems"]
+
+[[tool.importlinter.contracts]]
+id = "kernel"
+name = "kernel: config, db and problems import only the standard library and third-party packages"
+type = "forbidden"
+source_modules = ["orders_stock.config", "orders_stock.db", "orders_stock.problems"]
+forbidden_modules = [
+    "orders_stock.catalog",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+
+[[tool.importlinter.contracts]]
+id = "catalog"
+name = "catalog: imports only the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.catalog"]
+forbidden_modules = [
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+
+[[tool.importlinter.contracts]]
+id = "orders"
+name = "orders: imports only the catalog and the kernel, and never Inventory"
+type = "forbidden"
+source_modules = ["orders_stock.orders"]
+forbidden_modules = [
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+
+[[tool.importlinter.contracts]]
+id = "inventory"
+name = "inventory: imports only orders and the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.inventory"]
+forbidden_modules = [
+    "orders_stock.catalog",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "api"
+name = "api: imports only orders, inventory and the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.api"]
+forbidden_modules = [
+    "orders_stock.catalog",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "demo-seed-data"
+name = "demo.seed_data: imports only the catalog"
+type = "forbidden"
+source_modules = ["orders_stock.demo.seed_data"]
+forbidden_modules = [
+    "orders_stock.config",
+    "orders_stock.db",
+    "orders_stock.problems",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo.seed",
+    "orders_stock.demo.burst",
+    "orders_stock.demo.feed_consumer",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "demo-seed"
+name = "demo.seed: imports only demo.seed_data, the catalog, inventory and the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.demo.seed"]
+forbidden_modules = [
+    "orders_stock.orders",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo.burst",
+    "orders_stock.demo.feed_consumer",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "demo-http-clients"
+name = "demo.burst and demo.feed_consumer: import only config and httpx"
+type = "forbidden"
+source_modules = ["orders_stock.demo.burst", "orders_stock.demo.feed_consumer"]
+forbidden_modules = [
+    "orders_stock.db",
+    "orders_stock.problems",
+    "orders_stock.catalog",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo.seed",
+    "orders_stock.demo.seed_data",
+    "fastapi",
+    "starlette",
+    "pydantic",
+    "uvicorn",
+    "psycopg",
+    "psycopg_pool",
+    "yoyo",
+    "yaml",
+]
+
+[[tool.importlinter.contracts]]
+id = "demo-http-clients-independent"
+name = "demo.burst and demo.feed_consumer: do not import each other"
+type = "independence"
+modules = ["orders_stock.demo.burst", "orders_stock.demo.feed_consumer"]
+
+[[tool.importlinter.contracts]]
+id = "catalog-private"
+name = "catalog: other modules import only its public interface, never its submodules"
+type = "protected"
+protected_modules = ["orders_stock.catalog.*"]
+allowed_importers = ["orders_stock.catalog"]
+
+[[tool.importlinter.contracts]]
+id = "orders-private"
+name = "orders: other modules import only its public interface, never its submodules"
+type = "protected"
+protected_modules = ["orders_stock.orders.*"]
+allowed_importers = ["orders_stock.orders"]
+
+[[tool.importlinter.contracts]]
+id = "inventory-private"
+name = "inventory: other modules import only its public interface, never its submodules"
+type = "protected"
+protected_modules = ["orders_stock.inventory.*"]
+allowed_importers = ["orders_stock.inventory"]
+
+[[tool.importlinter.contracts]]
+id = "api-importers"
+name = "api: imported only by cli"
+type = "protected"
+protected_modules = ["orders_stock.api"]
+allowed_importers = ["orders_stock.cli"]
+
+[[tool.importlinter.contracts]]
+id = "cli-importers"
+name = "cli: imported by no module"
+type = "forbidden"
+source_modules = [
+    "orders_stock.config",
+    "orders_stock.db",
+    "orders_stock.problems",
+    "orders_stock.migrate",
+    "orders_stock.api",
+    "orders_stock.catalog",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.demo",
+]
+forbidden_modules = ["orders_stock.cli"]
