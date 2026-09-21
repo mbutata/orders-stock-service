@@ -9,7 +9,7 @@ An order-intake and stock service in Python and PostgreSQL.
 
 ## Design
 
-Start with [SOLUTION.md](SOLUTION.md), a five-minute read; [specs/](specs/README.md) is the detailed reference.
+Start with [SOLUTION.md](SOLUTION.md), a ten-minute read; [specs/](specs/README.md) is the detailed reference.
 
 - [SOLUTION.md](SOLUTION.md): the design narrative, its trade-offs, and implementation notes.
 - [specs/](specs/README.md): the specification the implementation is built against: requirements, domain model and schema, architecture, the HTTP contract with its [OpenAPI 3.1 document](specs/openapi.yaml), reliability and consistency, acceptance scenarios, the demo script, and architecture decision records.
