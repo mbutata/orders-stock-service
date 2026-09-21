@@ -96,7 +96,7 @@ def reset_data(conn: psycopg.Connection, *, seed: bool) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def database() -> str:
-    """Once per session: refuse a non-test database, recreate the schema, apply migrations."""
+    """Once per session: refuse a non-test or unreachable database, recreate the schema, migrate."""
     params = conninfo_to_dict(TEST_DATABASE_URL)
     name = params.get("dbname", "")
     if not str(name).endswith("_test"):
