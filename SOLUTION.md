@@ -99,6 +99,41 @@ Details: [04-api.md](specs/04-api.md#get-order-events), [ADR-0007](specs/adr/000
 Authentication, order cancellation or amendment, reporting, catalogue and stock administration, reservations and fulfilment, multi-currency, push delivery, log retention, parallel stock application, database failover, and metrics.
 Each is a named non-goal with its reason in [01-requirements.md](specs/01-requirements.md#non-goals).
 
+## Production path
+
+The design moves to Kubernetes, a managed PostgreSQL service and a Kafka cluster without changing what it guarantees.
+Each step below builds on a decision that already exists, and is worth taking only when its trigger is real.
+
+1. **Run the two processes as containers.**
+   `api` is stateless and scales out, and `stock-worker` runs as one replica, because the offset row lock already makes an overlapping rollout safe (REQ-OUT-04).
+   Migrations run as a one-off job before a rollout and follow expand and contract, because the processes deploy independently but share one schema.
+   Health endpoints and metrics come first (NG-13), with stock lag, in events and in seconds, as the first alert.
+   Trade-off: the image must ship `specs/openapi.yaml` and `migrations/`, which the code reads from the source tree.
+
+2. **Run on managed PostgreSQL.**
+   A failover is a transient fault the system already handles: `api` answers `503` with `Retry-After`, the worker backs off, and a retry with the same `order_ref` resolves an unknown commit outcome.
+   Each component gets its own database role, granted only its own tables, so the ownership rule is enforced by the database.
+   Trade-off: commit latency on replicated network storage is higher than on a local disk, which lowers the append-lock ceiling of [ADR-0004](specs/adr/0004-commit-ordered-event-log.md) and has to be measured.
+
+3. **Publish the log to Kafka.**
+   A relay is one more cursor consumer of `order_events`: it produces each event keyed by `order_ref` and advances its own offset only after the broker acknowledges.
+   The event envelope, its `event_version` and the consumer obligations carry over unchanged, and consumers keep deduplicating by `event_id`.
+   Change data capture of the same table is the later alternative; it emits in commit order without the append lock, at the cost of a replication slot to operate.
+   Trade-off: Kafka orders events per partition, not globally.
+   Stock does not need a global order, because decrements commute ([ADR-0006](specs/adr/0006-asynchronous-stock-decrement.md)), but `as_of_event_id` becomes a low watermark across partitions.
+
+4. **Consume stock from Kafka.**
+   The stock applier becomes an idempotent consumer: one transaction records each applied `order_ref` in an Inventory table, decrements stock, and commits, and the broker offset is committed afterwards.
+   This is the existing argument, at-least-once reading plus an atomic, idempotent effect, with the deduplication key moved into Inventory.
+   Trade-off: an order's status can no longer change in the same transaction as its stock, which leads to the next step.
+
+5. **Give Inventory its own database.**
+   This is the evolution path in [03-architecture.md](specs/03-architecture.md#evolution-paths): Inventory publishes `stock.committed` from its own outbox, Orders applies the guarded transition it already has, and Inventory keeps its own list of SKUs.
+   Separate schemas and roles in one instance come first, because they are cheap to reverse.
+   Trade-off: an order's status becomes eventually consistent across two hops.
+
+Across every step: authentication at the edge and credentials per consumer of the feed (NG-01), TLS to the database and the broker, secrets from the platform's secret store, and a pipeline that builds and scans the image and fails on a breaking change to `openapi.yaml` or to the event schema.
+
 ## How it is verified
 
 Every requirement has an ID, every acceptance scenario traces to requirements, and every test is named after its scenario ([06-acceptance.md](specs/06-acceptance.md)).
