@@ -226,6 +226,8 @@ brew services start postgresql@17
 
 The `export` lasts only for the current shell, so repeat it, or add it to the shell profile, in any terminal that later runs the client tools.
 On Linux, install the distribution package and make sure its service is running: Debian and Ubuntu start it on install, while other distributions may first need the cluster initialized and the service started, as their package documentation describes.
+The default `DATABASE_URL` and `TEST_DATABASE_URL` authenticate with a password over TCP, so `pg_hba.conf` must allow `scram-sha-256` or `md5` for `host` connections from `127.0.0.1/32` and `::1/128`.
+Homebrew, Debian and Ubuntu already accept these connections; where a distribution defaults to `ident` for them, as Fedora and RHEL do, change those lines and reload the server.
 
 With the server running, create the role and databases:
 
