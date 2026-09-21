@@ -18,7 +18,7 @@ The DDL in [Schema](#schema) is normative: migration `0001_initial.sql` must mat
 | Offset | The highest `event_id` a consumer has fully processed. The stock applier keeps its offset in `consumer_offsets`. |
 | `on_hand` | Units of a SKU that the business holds, after every applied order. It may be negative. |
 | Backorder | Negative `on_hand`: units sold that are not physically available. |
-| Lag | The number of events between the head of the event log and the stock applier's offset. |
+| Lag | The head of the event log minus the stock applier's offset, in event IDs; because IDs can have gaps, it is an upper bound on the number of unapplied events. |
 | Catch-up | The stock applier processing the events that accumulated while it was not running. |
 
 ## Conventions
@@ -42,7 +42,7 @@ Queries that produce it sort with `COLLATE "C"`, which does not depend on the da
 
 ### Time
 
-Timestamps are `timestamptz`, and all connections use `TimeZone=UTC`.
+Timestamps are `timestamptz`, and all connections except the one yoyo opens for `migrate` use `TimeZone=UTC`.
 The API renders them as RFC 3339 strings in UTC with a `Z` suffix.
 Timestamps are informational: ordering is always by `event_id`, never by time.
 
@@ -330,7 +330,7 @@ Invariants deliberately enforced in application code:
 | INV-ORD-5 (total equals sum of lines) | `accept_order` computes both from the same values | Same reason; AC-ORD-01 and AC-STK-05 check it. |
 | INV-ORD-6 (immutable after acceptance) | Orders exposes no update path except the status transition | The single update statement names only `status` and `stock_committed_at`. |
 | INV-ORD-8 (only `accepted` to `stock_committed`, once) | The guard `WHERE status = 'accepted'` in `mark_stock_committed` | The transition is one statement in one function; the guard is atomic with the update. |
-| INV-STK-1 (one stock level per product) | `seed` inserts both in one transaction | Enforcing it both ways needs circular deferred foreign keys. If it is ever violated, the stock applier stops rather than guess ([05-reliability.md](05-reliability.md#poison-events)). |
+| INV-STK-1 (one stock level per product) | `seed` inserts both in one transaction | Enforcing it both ways needs circular deferred foreign keys. If it is ever violated, the stock applier stops advancing and retries rather than guess ([05-reliability.md](05-reliability.md#poison-events)). |
 | INV-OFF-1 and INV-OFF-2 | The stock applier's single transaction | They relate rows in three tables changed together in one transaction by one writer. |
 
 `stock_levels.on_hand` deliberately has no `CHECK (on_hand >= 0)`: negative stock is a legal, meaningful state (INV-STK-3).

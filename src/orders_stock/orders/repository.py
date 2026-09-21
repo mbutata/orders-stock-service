@@ -21,6 +21,8 @@ def find_order(conn: psycopg.Connection, order_ref: str) -> Order | None:
     if row is None:
         return None
     customer_id, status, total_cents, accepted_at, stock_committed_at = row
+    # COLLATE "C" is code-point order, the order accept_order sorts new items in, whatever
+    # the database's default collation; the event payload and every read must agree.
     items = conn.execute(
         """
         SELECT sku, qty, unit_price_cents, line_total_cents

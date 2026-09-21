@@ -165,7 +165,7 @@ src/orders_stock/
         repository.py       SQL for products
     orders/
         __init__.py         public interface
-        models.py           Pydantic request and response models, domain dataclasses
+        models.py           Pydantic request models, domain dataclasses and domain errors
         service.py          accept_order, get_order, mark_stock_committed
         repository.py       SQL for orders and order items
         events.py           append_event (append lock and insert), read_events, head_event_id
@@ -200,7 +200,7 @@ The problem `type` URIs are built from one constant, `https://github.com/mbutata
 
 | Process | Command | Runs | Holds state | Stopping it affects |
 | --- | --- | --- | --- | --- |
-| `api` | `orders-stock api` | Uvicorn serving `create_app()`: Orders routes and the Inventory read route | None; any number of replicas is safe | HTTP clients only; the stock applier keeps draining the log |
+| `api` | `orders-stock api` | Uvicorn serving `create_app(settings)`: Orders routes and the Inventory read route | None; any number of replicas is safe | HTTP clients only; the stock applier keeps draining the log |
 | `stock-worker` | `orders-stock stock-worker` | The Inventory stock applier loop | Its offset, in PostgreSQL | Nothing else: orders are still accepted and the feed still serves them (REQ-OUT-01) |
 | `consume-feed` | `orders-stock consume-feed` | The demonstration feed consumer | Its cursor, in a local file | Nothing else |
 
@@ -297,6 +297,7 @@ Settings are read once at start-up into a frozen dataclass; there is no configur
 - Connections come from a `psycopg_pool.ConnectionPool`: `min_size=1`, `max_size=10` for `api` and `max_size=1` for `stock-worker`, `timeout` set from `DATABASE_POOL_TIMEOUT` to bound the wait to acquire a connection, and `check=ConnectionPool.check_connection` so that a connection broken by a PostgreSQL restart is replaced before use.
 - The pool is opened with `wait=False`, so `api` starts even when PostgreSQL is down (REQ-API-03).
 - Every connection is configured with autocommit off, isolation level `READ COMMITTED` set explicitly rather than inherited from server defaults, `TimeZone=UTC`, `statement_timeout=5s`, and `application_name` set to `orders-stock-api` or `orders-stock-stock-worker`.
+- `seed` opens one direct connection with the same configuration and `application_name` `orders-stock-seed`; `migrate` connects through yoyo.
 - Errors of class `psycopg.OperationalError`, which includes connection failures, pool acquisition timeouts and statement timeouts, are mapped to `503 service_unavailable` in `api` and to a retry with backoff in `stock-worker`.
 
 ## Stock worker loop
@@ -308,7 +309,8 @@ until stop is requested:
     try:
         batch = apply_next_batch(conn, batch_size)
     except OperationalError or StockInvariantViolation as error:
-        log  warning with the error; wait backoff (0.5 s, doubling, capped at 10 s); continue
+        log  the error (StockInvariantViolation as an error, otherwise a warning)
+        wait backoff (0.5 s, doubling, capped at 10 s); continue
     reset backoff
     if batch is None:
         wait poll_interval (interruptible by stop); continue

@@ -2,7 +2,7 @@
 
 This is the design narrative: what the system is, the decisions that carry it, and what they cost.
 It points into [specs/](specs/README.md) for detail rather than repeating it.
-Implementation notes are added in the final section as the code lands.
+The final section, [Implementation notes](#implementation-notes), records the as-built state.
 
 ## What it is
 
