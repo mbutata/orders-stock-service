@@ -174,6 +174,7 @@ The suite runs with warnings as errors.
   The demo shows the feed after the two unhappy paths rather than alongside them, and runs `consume-feed` for a few seconds per step.
   With native PostgreSQL, `--fresh` recreates the database as the `DATABASE_URL` role rather than as the operating-system user that created it, so it needs no superuser and refuses unless that URL names a local database.
   `start.sh` starts each process in its own process group, recorded in `.run/`, so that its Ctrl-C stops the `uv run` wrapper and the Python process together, including a stock worker the demo restarted, and so that a Ctrl-C in the demo's terminal leaves them running.
+  `start.sh` also records its `DATABASE_URL` in `.run/database-url`, readable only by its owner, and `demo.sh` exports it, so the stock worker restarted in D-08 uses the same database whatever the demo's terminal sets.
 
 ### Observations from running the system
 

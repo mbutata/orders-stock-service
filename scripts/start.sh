@@ -222,6 +222,9 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# The database for scripts/demo.sh, which restarts the stock worker; owner-only, as the URL can
+# hold a password.
+(umask 077 && printf '%s\n' "$DATABASE_URL" >"$RUN_DIR/database-url")
 : >"$RUN_DIR/api.log"
 : >"$RUN_DIR/stock-worker.log"
 show_log api "${CYAN}api          |${RESET} "

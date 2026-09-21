@@ -127,6 +127,10 @@ curl -s -o /dev/null --max-time 2 "$API/openapi.json" && [ -f "$WORKER_LOG" ] ||
 Start it first in another terminal with scripts/start.sh (scripts/start.sh --fresh for a clean take)."
 worker_pid=$(cat "$RUN_DIR/stock-worker.pid" 2>/dev/null) && kill -0 -- "-$worker_pid" 2>/dev/null ||
     die "stock-worker is not running. Stop scripts/start.sh with Ctrl-C and run scripts/start.sh --fresh."
+# The database scripts/start.sh runs against, so that the stock worker restarted in D-08 uses it too.
+DATABASE_URL=$(cat "$RUN_DIR/database-url" 2>/dev/null) ||
+    die "$RUN_DIR/database-url is missing. Stop scripts/start.sh with Ctrl-C and run scripts/start.sh --fresh."
+export DATABASE_URL
 status=$(curl -s -o /dev/null -w '%{http_code}' "$API/orders/web-100045")
 [ "$status" = 404 ] ||
     die "this database already holds the demo's orders (GET /orders/web-100045 returned $status).
