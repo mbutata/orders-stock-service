@@ -1,0 +1,264 @@
+[project]
+name = "orders-stock-service"
+version = "1.0.0"
+description = "Order intake with idempotent submission, asynchronous stock application and an order-accepted event feed."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141",
+    "uvicorn>=0.53",
+    "psycopg[binary]>=3.3",
+    "psycopg-pool>=3.3",
+    "yoyo-migrations>=9.0",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+orders-stock = "orders_stock.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "jsonschema>=4.26",
+    "ruff>=0.16",
+    "mypy>=2.3",
+    "import-linter>=2.15",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<1"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "orders_stock"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "N", "C4", "PT", "RET", "PL"]
+# N818: the exception names are part of the specified component interfaces.
+ignore = ["PLR2004", "PLR0913", "N818"]
+
+[tool.ruff.lint.isort]
+# The test suite's own helper modules, imported from tests/ by pytest's default import mode.
+known-local-folder = ["conftest", "contract"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+# These packages ship no type information, and ADR-0008 adds no stub packages.
+module = ["yoyo", "yoyo.*", "yaml", "jsonschema", "jsonschema.*"]
+ignore_missing_imports = true
+
+[tool.pytest]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+filterwarnings = [
+    "error",
+    # Starlette 1.x deprecates running its TestClient on httpx in favour of a package outside
+    # ADR-0008, and its own module still touches a deprecated anyio alias; neither is ours.
+    "ignore:Using `httpx` with `starlette.testclient`:starlette.exceptions.StarletteDeprecationWarning",
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
+markers = [
+    "no_seed: start the scenario from a migrated, empty database instead of the demo catalogue",
+]
+
+# The dependency rules of specs/03-architecture.md, one contract or more per row.
+# Checked by `uv run lint-imports` and by AC-ARCH-01 in tests/test_architecture.py.
+[tool.importlinter]
+root_package = "orders_stock"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "kernel-independent"
+name = "kernel: config, db and problems do not import each other"
+type = "independence"
+modules = ["orders_stock.config", "orders_stock.db", "orders_stock.problems"]
+
+[[tool.importlinter.contracts]]
+id = "kernel"
+name = "kernel: config, db and problems import only the standard library and third-party packages"
+type = "forbidden"
+source_modules = ["orders_stock.config", "orders_stock.db", "orders_stock.problems"]
+forbidden_modules = [
+    "orders_stock.catalog",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+
+[[tool.importlinter.contracts]]
+id = "catalog"
+name = "catalog: imports only the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.catalog"]
+forbidden_modules = [
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+
+[[tool.importlinter.contracts]]
+id = "orders"
+name = "orders: imports only the catalog and the kernel, and never Inventory"
+type = "forbidden"
+source_modules = ["orders_stock.orders"]
+forbidden_modules = [
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+
+[[tool.importlinter.contracts]]
+id = "inventory"
+name = "inventory: imports only orders and the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.inventory"]
+forbidden_modules = [
+    "orders_stock.catalog",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "api"
+name = "api: imports only orders, inventory and the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.api"]
+forbidden_modules = [
+    "orders_stock.catalog",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "demo-seed-data"
+name = "demo.seed_data: imports only the catalog"
+type = "forbidden"
+source_modules = ["orders_stock.demo.seed_data"]
+forbidden_modules = [
+    "orders_stock.config",
+    "orders_stock.db",
+    "orders_stock.problems",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo.seed",
+    "orders_stock.demo.burst",
+    "orders_stock.demo.feed_consumer",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "demo-seed"
+name = "demo.seed: imports only demo.seed_data, the catalog, inventory and the kernel"
+type = "forbidden"
+source_modules = ["orders_stock.demo.seed"]
+forbidden_modules = [
+    "orders_stock.orders",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo.burst",
+    "orders_stock.demo.feed_consumer",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "demo-http-clients"
+name = "demo.burst and demo.feed_consumer: import only config and httpx"
+type = "forbidden"
+source_modules = ["orders_stock.demo.burst", "orders_stock.demo.feed_consumer"]
+forbidden_modules = [
+    "orders_stock.db",
+    "orders_stock.problems",
+    "orders_stock.catalog",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.api",
+    "orders_stock.cli",
+    "orders_stock.migrate",
+    "orders_stock.demo.seed",
+    "orders_stock.demo.seed_data",
+    "fastapi",
+    "starlette",
+    "pydantic",
+    "uvicorn",
+    "psycopg",
+    "psycopg_pool",
+    "yoyo",
+    "yaml",
+]
+
+[[tool.importlinter.contracts]]
+id = "demo-http-clients-independent"
+name = "demo.burst and demo.feed_consumer: do not import each other"
+type = "independence"
+modules = ["orders_stock.demo.burst", "orders_stock.demo.feed_consumer"]
+
+[[tool.importlinter.contracts]]
+id = "catalog-private"
+name = "catalog: other modules import only its public interface, never its submodules"
+type = "protected"
+protected_modules = ["orders_stock.catalog.*"]
+allowed_importers = ["orders_stock.catalog"]
+
+[[tool.importlinter.contracts]]
+id = "orders-private"
+name = "orders: other modules import only its public interface, never its submodules"
+type = "protected"
+protected_modules = ["orders_stock.orders.*"]
+allowed_importers = ["orders_stock.orders"]
+
+[[tool.importlinter.contracts]]
+id = "inventory-private"
+name = "inventory: other modules import only its public interface, never its submodules"
+type = "protected"
+protected_modules = ["orders_stock.inventory.*"]
+allowed_importers = ["orders_stock.inventory"]
+
+[[tool.importlinter.contracts]]
+id = "api-importers"
+name = "api: imported only by cli"
+type = "protected"
+protected_modules = ["orders_stock.api"]
+allowed_importers = ["orders_stock.cli"]
+
+[[tool.importlinter.contracts]]
+id = "cli-importers"
+name = "cli: imported by no module"
+type = "forbidden"
+source_modules = [
+    "orders_stock.config",
+    "orders_stock.db",
+    "orders_stock.problems",
+    "orders_stock.migrate",
+    "orders_stock.api",
+    "orders_stock.catalog",
+    "orders_stock.orders",
+    "orders_stock.inventory",
+    "orders_stock.demo",
+]
+forbidden_modules = ["orders_stock.cli"]

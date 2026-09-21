@@ -1,0 +1,22 @@
+# Optional: PostgreSQL 17 for local use. The application itself always runs natively.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: orders_stock
+      POSTGRES_PASSWORD: orders_stock
+      POSTGRES_DB: orders_stock
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # Over TCP, so it passes only once the server accepts network connections.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "orders_stock", "-d", "orders_stock"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-data:

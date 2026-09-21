@@ -20,7 +20,7 @@ The concurrency behaviour described here was checked against PostgreSQL 14 with 
 
 ## Transaction model
 
-Every connection uses `READ COMMITTED`, set explicitly rather than inherited from the server's `default_transaction_isolation`.
+Every connection except the one yoyo opens for `migrate` uses `READ COMMITTED`, set explicitly rather than inherited from the server's `default_transaction_isolation`.
 
 - The duplicate-resolution flow needs a statement to see a row that a concurrent transaction committed after this transaction began.
   Under `READ COMMITTED` each statement takes a fresh snapshot, so the `SELECT` after a conflicting insert sees the winner's order.
@@ -353,7 +353,7 @@ No process holds state in memory that correctness depends on (REQ-OPS-01).
 
 | Link | Behaviour on failure |
 | --- | --- |
-| Client to `api` | The client retries with the same `order_ref`; `burst` does so up to 5 times with backoff from 0.2 seconds. |
+| Client to `api` | The client retries with the same `order_ref`; `burst` makes up to 5 attempts with backoff from 0.2 seconds. |
 | `api` to PostgreSQL | `503 service_unavailable` with `Retry-After: 1`; `api` keeps running and the pool reconnects. |
 | `stock-worker` to PostgreSQL | Exponential backoff from 0.5 to 10 seconds; it resumes from its offset. |
 | `consume-feed` to `api` | Exponential backoff from 0.5 to 10 seconds; it resumes from its cursor. |

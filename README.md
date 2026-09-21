@@ -9,10 +9,87 @@ An order-intake and stock service in Python and PostgreSQL.
 
 ## Design
 
-- [SOLUTION.md](SOLUTION.md): the design narrative and its trade-offs.
+- [SOLUTION.md](SOLUTION.md): the design narrative, its trade-offs, and implementation notes.
 - [specs/](specs/README.md): the specification the implementation is built against: requirements, domain model and schema, architecture, the HTTP contract with its [OpenAPI 3.1 document](specs/openapi.yaml), reliability and consistency, acceptance scenarios, the demo script, and architecture decision records.
 
-## Running locally
+## Prerequisites
 
-The system needs `uv` and PostgreSQL 14 or newer; Docker is optional and only provisions PostgreSQL.
-Step-by-step run instructions arrive with the implementation.
+- [uv](https://docs.astral.sh/uv/getting-started/installation/), which also installs Python 3.14 when it is missing.
+- PostgreSQL 14 or newer, installed natively or through Docker Compose.
+- `curl`, and optionally `jq`, for the demo.
+
+## PostgreSQL
+
+The default connection settings expect PostgreSQL on `localhost:5432` with a role `orders_stock` (password `orders_stock`) owning the databases `orders_stock` and `orders_stock_test`.
+Set `DATABASE_URL` and `TEST_DATABASE_URL` to use anything else; every variable is listed in [Runtime configuration](specs/03-architecture.md#runtime-configuration).
+
+### macOS (Homebrew)
+
+```sh
+brew install postgresql@17
+export PATH="$(brew --prefix postgresql@17)/bin:$PATH"   # keg-only; repeat in each new shell
+brew services start postgresql@17
+psql -d postgres -c "CREATE ROLE orders_stock LOGIN CREATEDB PASSWORD 'orders_stock'"
+createdb -O orders_stock orders_stock
+createdb -O orders_stock orders_stock_test
+psql -d orders_stock_test -c "ALTER SCHEMA public OWNER TO orders_stock"
+```
+
+### Linux
+
+Install the distribution's PostgreSQL package and make sure the service is running.
+Debian and Ubuntu start it on install; other distributions may first need the cluster initialized, as their package documentation describes.
+Then run the same role and database commands as the `postgres` user:
+
+```sh
+sudo -u postgres psql -c "CREATE ROLE orders_stock LOGIN CREATEDB PASSWORD 'orders_stock'"
+sudo -u postgres createdb -O orders_stock orders_stock
+sudo -u postgres createdb -O orders_stock orders_stock_test
+sudo -u postgres psql -d orders_stock_test -c "ALTER SCHEMA public OWNER TO orders_stock"
+```
+
+The connections authenticate with a password over TCP, so `pg_hba.conf` must allow `scram-sha-256` or `md5` for `host` connections from `127.0.0.1/32` and `::1/128`.
+Debian and Ubuntu already do; where a distribution defaults to `ident`, as Fedora and RHEL do, change those lines and reload the server.
+
+### Docker Compose (optional)
+
+```sh
+docker compose up -d --wait
+```
+
+This starts `postgres:17` on port 5432 with both databases already created; nothing else is needed.
+Compose provisions PostgreSQL only: the application always runs natively.
+
+## Run
+
+```sh
+uv sync
+uv run orders-stock migrate          # applied 1 migration(s)
+uv run orders-stock seed             # the demo catalogue and initial stock
+uv run orders-stock api              # terminal 1: http://127.0.0.1:8000, docs at /docs
+uv run orders-stock stock-worker     # terminal 2: applies stock from the event log
+uv run orders-stock consume-feed     # terminal 3, optional: prints order.accepted events
+uv run orders-stock burst            # submits a burst of orders, including duplicates
+```
+
+Every command is described in [Command-line interface](specs/03-architecture.md#command-line-interface).
+
+## Demo
+
+The scripted walkthrough, including the duplicate burst and the stock-worker outage and catch-up, is [specs/07-demo.md](specs/07-demo.md).
+It starts from a new database, as [Starting clean](specs/03-architecture.md#running-locally) describes.
+
+## Checks
+
+```sh
+uv sync
+uv run pytest                  # the acceptance suite, against TEST_DATABASE_URL
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy src tests
+uv run lint-imports            # the component dependency rules
+```
+
+Each test is named after the acceptance scenario it verifies in [specs/06-acceptance.md](specs/06-acceptance.md).
+The suite recreates the schema of the test database and refuses to run against a database whose name does not end in `_test`.
+CI runs the same commands against PostgreSQL 17 ([.github/workflows/ci.yml](.github/workflows/ci.yml)).

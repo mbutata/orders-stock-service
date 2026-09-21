@@ -2,7 +2,7 @@
 
 This is the design narrative: what the system is, the decisions that carry it, and what they cost.
 It points into [specs/](specs/README.md) for detail rather than repeating it.
-Implementation notes are added in the final section as the code lands.
+The final section, [Implementation notes](#implementation-notes), records the as-built state.
 
 ## What it is
 
@@ -109,3 +109,38 @@ The recorded demonstration follows the script in [07-demo.md](specs/07-demo.md).
 ## Implementation notes
 
 This section records the as-built state: deviations from the specification with their reasons, and observations from running the system.
+
+### As built
+
+The implementation follows the specification as written: the stack and checks of ADR-0008, the layout and processes of [03-architecture.md](specs/03-architecture.md), the DDL of [02-domain-model.md](specs/02-domain-model.md) as `migrations/0001_initial.sql`, the committed OpenAPI document served at `/openapi.json`, and the transaction statement sequences of [05-reliability.md](specs/05-reliability.md).
+The 44 acceptance scenarios map to 66 tests (outlines are parametrized), each named after its `AC-` ID.
+Every HTTP response the suite receives is validated against `specs/openapi.yaml`: in-process responses through an httpx response hook that fails the test at once, and every response of the live server, including those to the `burst` and `consume-feed` subprocesses, through an ASGI wrapper checked at the end of the test.
+Both paths were checked by deliberately breaking a response shape and a header and watching the suite fail.
+The suite runs with warnings as errors.
+
+### Deviations and clarifications
+
+- **Routers in the public interfaces.**
+  `api` must include the HTTP routes of Orders and Inventory, but the dependency rules forbid importing their private submodules.
+  Both packages therefore export `router` from `__init__.py`, and [03-architecture.md](specs/03-architecture.md#component-interfaces) now says so.
+- **The request connection is taken after validation.**
+  Routes receive the pool through a FastAPI dependency and take a connection only after the body or query has been validated, so a malformed request is rejected with `422` without touching the database, which keeps the processing order of [04-api.md](specs/04-api.md#processing-order) even while PostgreSQL is down.
+- **No type stubs for PyYAML, jsonschema and yoyo.**
+  ADR-0008 lists no stub packages, so mypy treats these three modules as untyped through an override in `pyproject.toml` instead of adding dependencies.
+- **Starlette's TestClient deprecation.**
+  Starlette 1.x warns that running its TestClient on httpx is deprecated in favour of a package outside ADR-0008.
+  The suite filters exactly that warning and one deprecated alias inside Starlette's own module; every other warning fails the run.
+- **Exception names.**
+  The interfaces specify `OrderRefConflict`, `UnknownSkus` and `StockInvariantViolation`, so ruff's rule that exception names end in `Error` is disabled.
+- **Quiet library loggers.**
+  The command line raises `httpx`, `httpcore` and `yoyo` to `WARNING`, so `burst`, `consume-feed` and `migrate` do not log every request or migration step; failures still show.
+
+### Observations from running the system
+
+- The demo in [07-demo.md](specs/07-demo.md) was walked end to end with native PostgreSQL, and every step's output matched the script, including `applied events 7..12: orders=6 skus=4 offset=12 lag=0` after the worker was killed with `SIGKILL` and restarted.
+- In D-04 the feed lists the burst's orders in commit order, which differs from their reference order, for example `event_id=1` was `web-100046`: exactly the ordering the specification promises.
+- `pkill -9 -f 'orders-stock stock-worker'` kills both the `uv run` wrapper and the Python process, since both command lines match.
+- While `consume-feed` runs, the `api` access log shows its `GET /order-events` poll every second alongside the `POST /orders` lines.
+- `order.accepted` payloads are stored as `jsonb`, which normalizes key order, so the members of an event's `data` appear in a different order than in the `Order` representation; JSON consumers are unaffected, and a replay is byte-for-byte stable (AC-FEED-02).
+- yoyo records the host name of each migration run through `socket.getfqdn()`, which can take several seconds on a machine whose host name does not resolve; `migrate` then pauses before printing its result, with no effect on correctness.
+- In AC-OUT-05 the blocked worker would hit its 5-second `statement_timeout` and retry, so the test kills it as soon as `pg_stat_activity` shows the lock wait.
