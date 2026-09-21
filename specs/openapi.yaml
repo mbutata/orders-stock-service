@@ -110,7 +110,7 @@ paths:
                 stockCommitted:
                   $ref: '#/components/examples/StockCommittedOrder'
         '404':
-          $ref: '#/components/responses/NotFound'
+          $ref: '#/components/responses/OrderNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -145,7 +145,7 @@ paths:
                     on_hand: 44
                     as_of_event_id: 6
         '404':
-          $ref: '#/components/responses/NotFound'
+          $ref: '#/components/responses/SkuNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -542,8 +542,8 @@ components:
                 detail: Order 'web-100047' already exists with different items or customer_id.
                 code: order_ref_conflict
 
-    NotFound:
-      description: The resource does not exist.
+    OrderNotFound:
+      description: No order has the requested order_ref (`order_not_found`).
       content:
         application/problem+json:
           schema:
@@ -556,6 +556,14 @@ components:
                 status: 404
                 detail: No order with order_ref 'web-999999'.
                 code: order_not_found
+
+    SkuNotFound:
+      description: No stock level exists for the requested SKU (`sku_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
             skuNotFound:
               value:
                 type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#sku_not_found
