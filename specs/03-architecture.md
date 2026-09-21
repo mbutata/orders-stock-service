@@ -149,6 +149,9 @@ pyproject.toml              metadata, dependencies, and ruff, mypy, pytest and i
 uv.lock                     locked dependency versions
 .python-version             3.14
 compose.yaml                optional: PostgreSQL 17 for local use
+scripts/
+    start.sh                runs the service locally in one terminal: checks, migrate, seed, api and stock-worker
+    demo.sh                 steps through the demo walkthrough of 07-demo.md against the processes start.sh runs
 docker/initdb/
     create-test-database.sql
 migrations/

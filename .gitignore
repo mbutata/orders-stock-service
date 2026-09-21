@@ -27,3 +27,4 @@ htmlcov/
 
 # Local state of the demonstration feed consumer
 .feed-cursor
+/.run/

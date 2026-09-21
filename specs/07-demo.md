@@ -16,6 +16,24 @@ Four terminals in the repository root:
 `curl` is used for HTTP; `jq` is optional and only pretty-prints.
 The run starts from a new database: D-01 drops and recreates it, then applies the migrations.
 
+### With the scripts
+
+Two scripts run this walkthrough in two terminals instead of four:
+
+- `scripts/start.sh --fresh` performs the clean start of D-01 and D-02: it drops and recreates the local database, applies the migrations, seeds, and runs `api` and `stock-worker`, standing in for T1 and T2 with each process's log prefixed.
+  With `--docker` it first starts PostgreSQL with Docker Compose and recreates the database through `docker compose exec`; with native PostgreSQL it runs `dropdb` and `createdb` as the `DATABASE_URL` role, which owns the database and has `CREATEDB`.
+- `scripts/demo.sh` then runs D-03 and D-05 to D-09 step by step in the other terminal: before each step it prints a heading and the exact commands, waits for Enter, then runs them, and it points out what the output proves.
+
+The steps below remain the normative reference, and the scripts follow them, with these differences in presentation:
+
+- The two unhappy paths come first, D-03, D-05 and D-06, then D-07 and D-08, and the feed follows as the integration surface working normally: D-04 reads it from the start once, after the outage, so its six lines and the six of D-07 appear together, and D-09 follows.
+- `consume-feed` runs for a few seconds per step, with its cursor in `.run/feed-cursor`, which `--fresh` removes, and is then stopped with `SIGINT`, as Ctrl-C would.
+- The outage order's status, the stale stock read, and the feed's new events 7 to 12, read with `GET /order-events?after=6`, are shown in one step.
+- D-10 is left to `uv run pytest -v`.
+
+`scripts/demo.sh` refuses to run against a database that already holds its orders; `scripts/start.sh --fresh` starts the next take.
+A change to these steps needs the same change to the scripts.
+
 ## Steps
 
 ### D-01 - Provision PostgreSQL and apply the schema
