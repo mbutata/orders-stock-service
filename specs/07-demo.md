@@ -28,7 +28,7 @@ First stop any `api`, `stock-worker` and `consume-feed` still running in T1 to T
 Then, in T4:
 
 ```sh
-docker compose up -d --wait   # or use a native PostgreSQL; see README.md
+docker compose up -d --wait   # or use a native PostgreSQL; see specs/03-architecture.md
 docker compose exec postgres dropdb -U orders_stock --if-exists orders_stock
 docker compose exec postgres createdb -U orders_stock orders_stock
 uv sync
