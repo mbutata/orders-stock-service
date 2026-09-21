@@ -303,10 +303,10 @@ Settings are read once at start-up into a frozen dataclass; there is no configur
 ## Stock worker loop
 
 ```text
-on start:
-    log  "stock-worker started: offset=<offset> head=<head> lag=<head - offset>"
 until stop is requested:
     try:
+        on the first successful connection:
+            log  "stock-worker started: offset=<offset> head=<head> lag=<head - offset>"
         batch = apply_next_batch(conn, batch_size)
     except OperationalError or StockInvariantViolation as error:
         log  the error (StockInvariantViolation as an error, otherwise a warning)
@@ -316,8 +316,10 @@ until stop is requested:
         wait poll_interval (interruptible by stop); continue
     log  "applied events <first>..<last>: orders=<n> skus=<k> offset=<last> lag=<head - last>"
 on stop:
-    log  "stock-worker stopped: offset=<offset>"
+    log  "stock-worker stopped: offset=<offset>"   (offset=unknown if it never connected)
 ```
+
+The start line waits for PostgreSQL, so when it is down at start-up the retry warnings come first.
 
 `SIGINT` and `SIGTERM` set the stop event.
 The loop checks it between transactions, so a graceful stop never interrupts a batch; an ungraceful stop (`SIGKILL`) is covered by transaction atomicity.

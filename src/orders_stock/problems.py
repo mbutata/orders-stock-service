@@ -134,7 +134,7 @@ def _handle_validation(request: Request, exc: Exception) -> JSONResponse:
 
 def _handle_http(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StarletteHTTPException)
-    # FastAPI raises 400 for a body it cannot decode, such as one that is not valid UTF-8;
+    # FastAPI raises 400 for a body it cannot decode, such as Latin-1 text;
     # the contract treats that like a body that is not JSON.
     if exc.status_code == 400:
         return problem_response(

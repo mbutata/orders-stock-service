@@ -5,14 +5,17 @@ runtime failure and 2 on a usage error.
 """
 
 import argparse
+import copy
 import logging
 import signal
 import sys
 import threading
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import uvicorn
+import uvicorn.config
 
 from orders_stock.api import create_app
 from orders_stock.config import Settings
@@ -26,6 +29,13 @@ logger = logging.getLogger("orders_stock")
 
 # Libraries that log every request or migration step at INFO; their failures still show.
 QUIET_LOGGERS = ("httpx", "httpcore", "yoyo")
+
+
+def api_log_config() -> dict[str, Any]:
+    """Uvicorn's default logging, with the access log moved from stdout to stderr."""
+    config = copy.deepcopy(uvicorn.config.LOGGING_CONFIG)
+    config["handlers"]["access"]["stream"] = "ext://sys.stderr"
+    return config
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +86,7 @@ def run(args: argparse.Namespace, settings: Settings) -> int:
                 port=args.port,
                 workers=1,
                 access_log=True,
+                log_config=api_log_config(),
                 log_level=settings.log_level.lower(),
             )
         case "stock-worker":
