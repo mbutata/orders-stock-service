@@ -79,11 +79,7 @@ paths:
         '409':
           $ref: '#/components/responses/OrderRefConflict'
         '422':
-          $ref: '#/components/responses/UnprocessableContent'
-          description: |
-            The body violates the request schema or repeats a SKU (`validation_error`),
-            or a new order references a SKU that is not in the catalogue (`unknown_sku`).
-            Nothing was stored.
+          $ref: '#/components/responses/InvalidOrder'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -202,8 +198,7 @@ paths:
                     next_after: 6
                     has_more: false
         '422':
-          $ref: '#/components/responses/UnprocessableContent'
-          description: A query parameter is invalid (`validation_error`).
+          $ref: '#/components/responses/InvalidQuery'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -453,7 +448,7 @@ components:
           description: RFC 6901 JSON Pointer into the request body, in URI fragment form, for example "#/items/0/qty".
         parameter:
           type: string
-          description: Name of the offending query or path parameter.
+          description: Name of the offending query parameter.
       if:
         required: [pointer]
       then:
@@ -477,11 +472,12 @@ components:
         examples: [1]
 
   responses:
-    UnprocessableContent:
+    InvalidOrder:
       description: |
-        The request is invalid, so nothing was changed.
-        The problem's `code` names the cause and `errors` lists each offending location;
-        each operation's own description says which codes it can return.
+        The body violates the request schema or repeats a SKU (`validation_error`),
+        or a new order references a SKU that is not in the catalogue (`unknown_sku`).
+        `errors` has one entry per offending location, each with a `pointer` into the body.
+        Nothing was stored.
       content:
         application/problem+json:
           schema:
@@ -498,7 +494,28 @@ components:
                 errors:
                   - detail: Input should be greater than or equal to 1
                     pointer: '#/items/0/qty'
-            queryValidationError:
+            unknownSku:
+              summary: A new order references an unknown SKU
+              value:
+                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#unknown_sku
+                title: Unknown SKU
+                status: 422
+                detail: 1 item references a SKU that is not in the catalogue.
+                code: unknown_sku
+                errors:
+                  - detail: Unknown SKU 'XYZ-999'.
+                    pointer: '#/items/1/sku'
+
+    InvalidQuery:
+      description: |
+        A query parameter is invalid (`validation_error`).
+        `errors` has one entry per offending parameter, each with its `parameter` name.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            validationError:
               summary: A query parameter out of range
               value:
                 type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#validation_error
@@ -509,17 +526,6 @@ components:
                 errors:
                   - detail: Input should be less than or equal to 500
                     parameter: limit
-            unknownSku:
-              summary: 'POST /orders only: a new order references an unknown SKU'
-              value:
-                type: https://github.com/mbutata/orders-stock-service/blob/main/specs/04-api.md#unknown_sku
-                title: Unknown SKU
-                status: 422
-                detail: 1 item references a SKU that is not in the catalogue.
-                code: unknown_sku
-                errors:
-                  - detail: Unknown SKU 'XYZ-999'.
-                    pointer: '#/items/1/sku'
 
     OrderRefConflict:
       description: An order with this order_ref exists with different content. Nothing was changed.
