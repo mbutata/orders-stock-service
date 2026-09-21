@@ -4,6 +4,7 @@ The conventions are those of specs/06-acceptance.md, "Test conventions".
 """
 
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -80,6 +81,12 @@ def connect(database_url: str = TEST_DATABASE_URL) -> psycopg.Connection:
     return conn
 
 
+def masked(database_url: str) -> str:
+    """The URL with any password replaced, safe to print."""
+    database_url = re.sub(r"(://[^/@]*?:)[^/@]*@", r"\1***@", database_url)
+    return re.sub(r"(password=)[^&\s]*", r"\1***", database_url)
+
+
 def reset_schema(conn: psycopg.Connection) -> None:
     conn.execute("DROP SCHEMA public CASCADE")
     conn.execute("CREATE SCHEMA public")
@@ -100,7 +107,15 @@ def database() -> str:
     name = conninfo_to_dict(TEST_DATABASE_URL).get("dbname", "")
     if not str(name).endswith("_test"):
         pytest.exit(f"TEST_DATABASE_URL must name a database ending in _test, not {name!r}")
-    with connect() as conn:
+    try:
+        conn = connect()
+    except psycopg.OperationalError as error:
+        cause = next(iter(str(error).splitlines()), type(error).__name__)
+        pytest.exit(
+            f"The test database {masked(TEST_DATABASE_URL)} is not reachable ({cause}). "
+            "Start PostgreSQL or set TEST_DATABASE_URL; see the PostgreSQL section of README.md."
+        )
+    with conn:
         reset_schema(conn)
     apply_migrations(TEST_DATABASE_URL)
     return TEST_DATABASE_URL
