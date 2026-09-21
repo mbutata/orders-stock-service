@@ -5,7 +5,6 @@ Every connection has autocommit off, READ COMMITTED set explicitly, TimeZone=UTC
 (specs/05-reliability.md, "Transaction model").
 """
 
-from collections.abc import Iterator
 from typing import Any
 
 import psycopg
@@ -56,8 +55,11 @@ def create_pool(
     return pool
 
 
-def request_connection(request: Request) -> Iterator[psycopg.Connection]:
-    """FastAPI dependency: a pooled connection for the duration of one request."""
+def request_pool(request: Request) -> ConnectionPool:
+    """FastAPI dependency: the application's pool.
+
+    Routes take a connection from it only after the request has been validated, so a malformed
+    request is rejected without touching the database.
+    """
     pool: ConnectionPool = request.app.state.pool
-    with pool.connection() as conn:
-        yield conn
+    return pool

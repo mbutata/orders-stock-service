@@ -39,7 +39,8 @@ target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "N", "C4", "PT", "RET", "PL"]
-ignore = ["PLR2004", "PLR0913"]
+# N818: the exception names are part of the specified component interfaces.
+ignore = ["PLR2004", "PLR0913", "N818"]
 
 [tool.mypy]
 strict = true
@@ -47,7 +48,8 @@ plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["yoyo", "yoyo.*"]
+# These packages ship no type information, and ADR-0008 adds no stub packages.
+module = ["yoyo", "yoyo.*", "yaml", "jsonschema", "jsonschema.*"]
 ignore_missing_imports = true
 
 [tool.pytest]
