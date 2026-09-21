@@ -37,6 +37,8 @@ Multi-currency is a non-goal (NG-06); when it is needed, a `currency` column on 
 The API accepts them in request bodies only if they match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, so every identifier it stores is safe in a URL path without encoding.
 Path parameters are not validated: a value that matches no order or SKU yields `404`.
 The database enforces the length bound; the character rule is an input-format rule and lives at the API boundary.
+Ascending SKU order, the order of an order's items in every representation, is code-point order, so `BAN-001` precedes `apl-001`.
+Queries that produce it sort with `COLLATE "C"`, which does not depend on the database's default collation.
 
 ### Time
 

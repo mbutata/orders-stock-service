@@ -210,7 +210,7 @@ Every error response, including framework-level `404` and `405` responses for un
 | `code` | always | Stable machine-readable identifier; clients branch on this, not on `title` or `detail`. |
 | `errors` | `validation_error` and `unknown_sku` only | One entry per offending location: `detail`, plus exactly one of `pointer` (RFC 6901 JSON Pointer into the body, in URI fragment form such as `#/items/0/qty`) or `parameter` (a query parameter name); the `ProblemError` schema enforces this. |
 
-Validation errors from the web framework are translated into this shape; a body that is not valid JSON yields one entry with `pointer: "#"`.
+Validation errors from the web framework are translated into this shape; a body that is not valid JSON, including one that is not valid UTF-8, yields one entry with `pointer: "#"`.
 
 ### Codes
 

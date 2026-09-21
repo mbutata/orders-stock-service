@@ -134,6 +134,12 @@ def _handle_validation(request: Request, exc: Exception) -> JSONResponse:
 
 def _handle_http(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StarletteHTTPException)
+    if exc.status_code == 400:
+        return problem_response(
+            VALIDATION_ERROR,
+            SCHEMA_MISMATCH_DETAIL,
+            errors=[ErrorLocation(str(exc.detail), pointer="#")],
+        )
     if exc.status_code == 404:
         return problem_response(NOT_FOUND, f"No route matches {request.url.path}.")
     if exc.status_code == 405:

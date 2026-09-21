@@ -122,6 +122,7 @@ MALFORMED: list[tuple[str, Any, str]] = [
     ),
     ("unknown member", modified(lambda b: b["items"][0].update(quantity=2)), "#/items/0/quantity"),
     ("body is not JSON", b'{"order_ref":', "#"),
+    ("body is not UTF-8", '{"order_ref":"café"}'.encode("latin-1"), "#"),
 ]
 
 
@@ -194,3 +195,26 @@ def test_ac_ord_08_intake_does_not_touch_inventory(
         assert response.status_code == 201
         assert elapsed < 2
         raise psycopg.Rollback  # the locking transaction is then rolled back
+
+
+def test_ac_ord_09_items_are_in_code_point_sku_order_in_every_representation(
+    client: TestClient, conn: psycopg.Connection
+) -> None:
+    with conn.transaction():
+        conn.execute(
+            "INSERT INTO products (sku, name, price_cents) VALUES ('apl-001', 'Apple, loose', 99)"
+        )
+        conn.execute("INSERT INTO stock_levels (sku, on_hand) VALUES ('apl-001', 10)")
+    order = {
+        "order_ref": "web-100052",
+        "customer_id": "cust-42",
+        "items": [{"sku": "apl-001", "qty": 1}, {"sku": "BAN-001", "qty": 1}],
+    }
+
+    created = client.post("/orders", json=order).json()
+
+    assert [item["sku"] for item in created["items"]] == ["BAN-001", "apl-001"]
+    assert client.get("/orders/web-100052").json() == created
+    assert client.post("/orders", json=order).json() == created
+    (event,) = client.get("/order-events").json()["events"]
+    assert event["data"] == without_state(created)

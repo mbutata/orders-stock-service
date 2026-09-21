@@ -113,7 +113,7 @@ This section records the as-built state: deviations from the specification with 
 ### As built
 
 The implementation follows the specification as written: the stack and checks of ADR-0008, the layout and processes of [03-architecture.md](specs/03-architecture.md), the DDL of [02-domain-model.md](specs/02-domain-model.md) as `migrations/0001_initial.sql`, the committed OpenAPI document served at `/openapi.json`, and the transaction statement sequences of [05-reliability.md](specs/05-reliability.md).
-The 43 acceptance scenarios map to 64 tests (outlines are parametrized), each named after its `AC-` ID.
+The 44 acceptance scenarios map to 66 tests (outlines are parametrized), each named after its `AC-` ID.
 Every HTTP response the suite receives is validated against `specs/openapi.yaml`: in-process responses through an httpx response hook that fails the test at once, and every response of the live server, including those to the `burst` and `consume-feed` subprocesses, through an ASGI wrapper checked at the end of the test.
 Both paths were checked by deliberately breaking a response shape and a header and watching the suite fail.
 The suite runs with warnings as errors.

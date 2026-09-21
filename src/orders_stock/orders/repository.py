@@ -25,7 +25,7 @@ def find_order(conn: psycopg.Connection, order_ref: str) -> Order | None:
         """
         SELECT sku, qty, unit_price_cents, line_total_cents
           FROM order_items WHERE order_ref = %s
-         ORDER BY sku
+         ORDER BY sku COLLATE "C"
         """,
         (order_ref,),
     ).fetchall()

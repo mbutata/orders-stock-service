@@ -44,7 +44,7 @@ Verified by: AC-ORD-01, AC-OPS-02.
 
 **REQ-ORD-01 - Create an order.**
 `POST /orders` with an `order_ref`, a `customer_id` and one or more `items` (`sku`, `qty`) MUST persist the order in PostgreSQL with status `accepted` and respond `201 Created` with the order representation and a `Location` header.
-Verified by: AC-ORD-01.
+Verified by: AC-ORD-01, AC-ORD-09.
 
 **REQ-ORD-02 - Price at the time of the order.**
 At acceptance, each item MUST record the product's current `price_cents` as its `unit_price_cents`.
@@ -54,7 +54,7 @@ Verified by: AC-ORD-01, AC-ORD-04, AC-STK-05.
 
 **REQ-ORD-03 - Fetch an order.**
 `GET /orders/{order_ref}` MUST return the order's details and current status, or `404` with problem code `order_not_found` when no such order exists.
-Verified by: AC-ORD-02, AC-ORD-03.
+Verified by: AC-ORD-02, AC-ORD-03, AC-ORD-09.
 
 **REQ-ORD-04 - Reject malformed requests.**
 A create request that violates the request schema in [04-api.md](04-api.md) MUST be rejected with `422` and problem code `validation_error`, and MUST have no effect.
@@ -100,7 +100,7 @@ Verified by: AC-STK-04, AC-OUT-01, AC-OUT-02.
 
 **REQ-FEED-01 - A pull feed of accepted orders.**
 `GET /order-events` MUST return `order.accepted` events in ascending `event_id` order, paginated by an `after` cursor and a `limit`.
-Verified by: AC-FEED-01, AC-FEED-02, AC-FEED-06.
+Verified by: AC-FEED-01, AC-FEED-02, AC-FEED-06, AC-ORD-09.
 
 **REQ-FEED-02 - One event per accepted order.**
 Each accepted order MUST have exactly one `order.accepted` event.
@@ -178,7 +178,7 @@ Two submissions have the same content when their `customer_id` values are equal 
 **REQ-DUP-01 - An identical resubmission is a no-op that returns the order.**
 It MUST respond `200 OK` with the current representation of the existing order.
 It MUST NOT create an order, append an event, change stock, or reprice the order.
-Verified by: AC-DUP-01, AC-DUP-02, AC-DUP-05.
+Verified by: AC-DUP-01, AC-DUP-02, AC-DUP-05, AC-ORD-09.
 
 **REQ-DUP-02 - A conflicting resubmission is rejected.**
 A resubmission with different content MUST respond `409 Conflict` with problem code `order_ref_conflict` and MUST NOT change the existing order.

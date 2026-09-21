@@ -116,6 +116,7 @@ Scenario outline.
 | repeated SKU | `items` = `[{"sku": "BAN-001", "qty": 1}, {"sku": "BAN-001", "qty": 2}]` | `#/items/1/sku` |
 | unknown member | add `"quantity": 2` to `items[0]` | `#/items/0/quantity` |
 | body is not JSON | raw body `{"order_ref":` | `#` |
+| body is not UTF-8 | raw body `{"order_ref":"café"}` encoded in Latin-1 | `#` |
 
 Request models validate strictly: a string such as `"2"` is not coerced to an integer.
 
@@ -146,6 +147,16 @@ Traces: REQ-ORD-06, REQ-OUT-01.
 - **When** O1 is posted
 - **Then** the status is `201` within 2 seconds
 - **And** the locking transaction is then rolled back.
+
+### AC-ORD-09 - Items are in code-point SKU order in every representation
+
+Traces: REQ-ORD-01, REQ-ORD-03, REQ-DUP-01, REQ-FEED-01.
+
+- **Given** the product `apl-001` at 99 with 10 on hand is added directly in the database
+- **When** `{"order_ref": "web-100052", "customer_id": "cust-42", "items": [{"sku": "apl-001", "qty": 1}, {"sku": "BAN-001", "qty": 1}]}` is posted with response body B
+- **Then** B lists `BAN-001` before `apl-001`, the code-point order, which a case-insensitive collation such as `en_US.utf8` would reverse
+- **And** `GET /orders/web-100052` and a resubmission of the same request each return a body equal to B
+- **And** the order's event `data` equals B without `status` and `stock_committed_at`.
 
 ## Duplicate submissions (unhappy path 1)
 
@@ -556,6 +567,7 @@ Traces: REQ-ARCH-01.
 | AC-ORD-06 | REQ-ORD-05 |
 | AC-ORD-07 | REQ-ORD-07, REQ-API-02 |
 | AC-ORD-08 | REQ-ORD-06, REQ-OUT-01 |
+| AC-ORD-09 | REQ-ORD-01, REQ-ORD-03, REQ-DUP-01, REQ-FEED-01 |
 | AC-DUP-01 | REQ-DUP-01, REQ-FEED-02 |
 | AC-DUP-02 | REQ-DUP-01 |
 | AC-DUP-03 | REQ-DUP-02 |
