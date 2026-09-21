@@ -90,6 +90,7 @@ Orders keeps control of its state machine because the transition is Orders code,
 
 Each component package exports its public interface from its `__init__.py`.
 Other components import only these names; submodules such as `orders_stock.orders.repository` are private.
+Orders and Inventory also export `router`, the FastAPI router of their HTTP routes, which only `orders_stock.api` includes; this is how `api` reaches the routes without importing a private submodule.
 Functions take a `psycopg.Connection`.
 A function marked "own transaction" opens and commits its transaction on that connection; every other function runs inside whatever transaction its caller holds.
 
