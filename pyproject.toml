@@ -1,0 +1,58 @@
+[project]
+name = "orders-stock-service"
+version = "1.0.0"
+description = "Order intake with idempotent submission, asynchronous stock application and an order-accepted event feed."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141",
+    "uvicorn>=0.53",
+    "psycopg[binary]>=3.3",
+    "psycopg-pool>=3.3",
+    "yoyo-migrations>=9.0",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+orders-stock = "orders_stock.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "jsonschema>=4.26",
+    "ruff>=0.16",
+    "mypy>=2.3",
+    "import-linter>=2.15",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<1"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "orders_stock"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "N", "C4", "PT", "RET", "PL"]
+ignore = ["PLR2004", "PLR0913"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["yoyo", "yoyo.*"]
+ignore_missing_imports = true
+
+[tool.pytest]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+markers = [
+    "no_seed: start the scenario from a migrated, empty database instead of the demo catalogue",
+]
