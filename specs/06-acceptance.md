@@ -487,7 +487,7 @@ Traces: REQ-API-02.
 
 Traces: REQ-API-03.
 
-- **Given** an app created by `create_app` with settings whose `database_url` points at a local port where nothing listens and whose `database_pool_timeout` is 1 second
+- **Given** an app created by `create_app` with settings whose `ORDERS_STOCK_DATABASE_URL` points at a local port where nothing listens and whose `ORDERS_STOCK_DATABASE_POOL_TIMEOUT` is 1 second
 - **Then** the app starts
 - **And** each of `POST /orders` with O1, `GET /orders/web-100045`, `GET /stock/BAN-001` and `GET /order-events` returns `503` with `code` `service_unavailable` and `Retry-After: 1`.
 
