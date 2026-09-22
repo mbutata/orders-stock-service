@@ -101,9 +101,9 @@ shown_url=$(printf '%s' "$DATABASE_URL" | sed -E 's#(//[^:/@]+):[^@]*@#\1:***@#'
 # Everything below hands DATABASE_URL to libpq, so first check that libpq can read it at all. A
 # common cause is a SQLAlchemy-style postgresql+driver:// address exported by another project.
 uv run --quiet python -c '
+import os
 from psycopg.conninfo import conninfo_to_dict
-from orders_stock.config import Settings
-conninfo_to_dict(Settings.from_env().database_url)' >/dev/null 2>&1 ||
+conninfo_to_dict(os.environ["DATABASE_URL"])' >/dev/null 2>&1 ||
     die "DATABASE_URL is set to $shown_url, which PostgreSQL's tools cannot read; it may be left over from another project (a SQLAlchemy-style postgresql+driver:// address is a common cause).
 Unset it (unset DATABASE_URL) to use the demo database, or set it to a postgresql:// address."
 
