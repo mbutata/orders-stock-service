@@ -208,7 +208,7 @@ part "$GREEN" "THE INTEGRATION SURFACE: the order-accepted feed, working normall
 
 step "D-04 - Another team's system reads the feed from the start" \
     "uv run orders-stock consume-feed --from-start --cursor-file $CURSOR"
-point "12 events for 12 orders, not 22 submissions, in commit order;" \
+point "12 events for the 12 orders, not one per submission (24 so far), in commit order;" \
     "events 7 to 12 were published while the stock worker was down."
 
 step "D-09 - A new order, and the consumer resumes from its cursor" \
