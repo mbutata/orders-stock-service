@@ -20,7 +20,7 @@ The run starts from a new database: D-01 drops and recreates it, then applies th
 
 Two scripts run this walkthrough in two terminals instead of four:
 
-- `scripts/start.sh --fresh` performs the clean start of D-01 and D-02: it drops and recreates the local database, applies the migrations, seeds, and runs `api` and `stock-worker`, standing in for T1 and T2 with each process's log prefixed.
+- `scripts/start.sh --fresh` performs the clean start of D-01 and D-02: it drops and recreates the local database `orders_stock`, and refuses before dropping anything if `DATABASE_URL` names any other database or a non-local host, then applies the migrations, seeds, and runs `api` and `stock-worker`, standing in for T1 and T2 with each process's log prefixed.
   With `--docker` it first starts PostgreSQL with Docker Compose and recreates the database through `docker compose exec`; with native PostgreSQL it runs `dropdb` and `createdb` as the `DATABASE_URL` role, which owns the database and has `CREATEDB`.
 - `scripts/demo.sh` then runs D-03 to D-09 step by step in the other terminal: before each step it prints a heading and the exact commands, waits for Enter, then runs them, and it points out what the output proves.
 

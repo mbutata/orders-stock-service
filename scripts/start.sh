@@ -104,18 +104,17 @@ from orders_stock.config import Settings
 print(conninfo_to_dict(Settings.from_env().database_url).get(sys.argv[1]) or "")' "$1"
 }
 
-# --fresh drops a database, so refuse before touching anything unless DATABASE_URL clearly names
-# a local demo database.
+# --fresh drops a database, so refuse before touching anything unless DATABASE_URL names the
+# demo database itself: exactly orders_stock, the documented default, on a local host. Any other
+# name may belong to another project, for example a DATABASE_URL left exported in the shell.
 if $fresh; then
     host=$(db_param host) port=$(db_param port) user=$(db_param user) dbname=$(db_param dbname)
     case $host in
         '' | localhost | 127.0.0.1 | ::1 | /*) ;;
         *) die "--fresh drops the database, so it only runs against a local one; DATABASE_URL points at host '$host'." ;;
     esac
-    case $dbname in
-        '' | postgres | template0 | template1)
-            die "--fresh needs DATABASE_URL to name the demo database explicitly, not '${dbname:-(none)}'." ;;
-    esac
+    [ "$dbname" = orders_stock ] ||
+        die "--fresh only drops the demo database orders_stock, but DATABASE_URL names '${dbname:-(none)}'; nothing was dropped."
     [ -n "$user" ] || die "--fresh needs DATABASE_URL to name the role that owns the database."
     if $use_docker && [ "${port:-5432}" != 5432 ]; then
         die "--docker --fresh expects the compose database on port 5432; DATABASE_URL uses port $port."
