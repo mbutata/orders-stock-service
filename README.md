@@ -18,7 +18,7 @@ Start with [SOLUTION.md](SOLUTION.md), a ten-minute read; [specs/](specs/README.
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), which also installs Python 3.14 when it is missing.
 - PostgreSQL 14 or newer, installed natively or through Docker Compose.
-- `curl`, and optionally `jq`, for the demo.
+- `curl`, for `scripts/start.sh` and the demo, and optionally `jq`, which only pretty-prints.
 
 ## PostgreSQL
 
@@ -66,6 +66,28 @@ Compose provisions PostgreSQL only: the application always runs natively.
 
 ## Run
 
+### Quick start
+
+With PostgreSQL set up as above, start everything in one terminal:
+
+```sh
+scripts/start.sh            # or: scripts/start.sh --docker, to start PostgreSQL with Docker Compose first
+```
+
+It checks the prerequisites and the database, installs dependencies, applies the migrations, seeds the catalogue, and runs `api` and `stock-worker` until Ctrl-C, with their logs prefixed in that terminal and also written to `.run/`.
+`scripts/start.sh --fresh` first drops and recreates the local database, for a clean demo take.
+Then, in a second terminal, step through the demo:
+
+```sh
+scripts/demo.sh
+```
+
+It shows each step's commands and runs them when Enter is pressed.
+
+### Manual steps
+
+The reference for what the scripts do:
+
 ```sh
 uv sync
 uv run orders-stock migrate          # applied 1 migration(s)
@@ -83,6 +105,7 @@ Every command is described in [Command-line interface](specs/03-architecture.md#
 
 The scripted walkthrough, including the duplicate burst and the stock-worker outage and catch-up, is [specs/07-demo.md](specs/07-demo.md).
 It starts from a new database, as [Starting clean](specs/03-architecture.md#running-locally) describes.
+`scripts/start.sh --fresh` performs that clean start, and `scripts/demo.sh` runs the walkthrough step by step.
 
 ## Checks
 

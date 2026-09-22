@@ -169,10 +169,17 @@ The suite runs with warnings as errors.
   The interfaces specify `OrderRefConflict`, `UnknownSkus` and `StockInvariantViolation`, so ruff's rule that exception names end in `Error` is disabled.
 - **Quiet library loggers.**
   The command line raises `httpx`, `httpcore` and `yoyo` to `WARNING`, so `burst`, `consume-feed` and `migrate` do not log every request or migration step; failures still show.
+- **Run and demo scripts.**
+  `scripts/start.sh` runs the service in one terminal and `scripts/demo.sh` steps through the walkthrough in a second, as [07-demo.md](specs/07-demo.md#with-the-scripts) describes.
+  The demo shows the feed after the two unhappy paths rather than alongside them, and runs `consume-feed` for a few seconds per step.
+  With native PostgreSQL, `--fresh` recreates the database as the `DATABASE_URL` role rather than as the operating-system user that created it, so it needs no superuser, and on either path it refuses before dropping anything unless that URL names the database `orders_stock` on a local host, so that a `DATABASE_URL` left set for another project cannot lose that project's database.
+  `start.sh` starts each process in its own process group, recorded in `.run/`, so that its Ctrl-C stops the `uv run` wrapper and the Python process together, including a stock worker the demo restarted, and so that a Ctrl-C in the demo's terminal leaves them running.
+  `start.sh` also records its `DATABASE_URL` in `.run/database-url`, readable only by its owner, and `demo.sh` exports it, so the stock worker restarted in D-08 uses the same database whatever the demo's terminal sets.
 
 ### Observations from running the system
 
 - The demo in [07-demo.md](specs/07-demo.md) was walked end to end with native PostgreSQL, and every step's output matched the script, including `applied events 7..12: orders=6 skus=4 offset=12 lag=0` after the worker was killed with `SIGKILL` and restarted.
+- The same walkthrough through `scripts/start.sh --fresh` and `scripts/demo.sh`, against a throwaway PostgreSQL 14 cluster on a non-default port and macOS's `/bin/bash` 3.2, matched the script in two consecutive takes, and Ctrl-C left no `api` or `stock-worker` running.
 - In D-04 the feed lists the burst's orders in commit order, which differs from their reference order, for example `event_id=1` was `web-100046`: exactly the ordering the specification promises.
 - `pkill -9 -f 'orders-stock stock-worker'` kills both the `uv run` wrapper and the Python process, since both command lines match.
 - While `consume-feed` runs, the `api` access log shows its `GET /order-events` poll every second alongside the `POST /orders` lines.
