@@ -22,16 +22,18 @@ class Settings:
         """Build settings from environment variables, falling back to the documented defaults."""
         defaults = cls()
         return cls(
-            database_url=environ.get("DATABASE_URL", defaults.database_url),
+            database_url=environ.get("ORDERS_STOCK_DATABASE_URL", defaults.database_url),
             database_pool_timeout=float(
-                environ.get("DATABASE_POOL_TIMEOUT", defaults.database_pool_timeout)
+                environ.get("ORDERS_STOCK_DATABASE_POOL_TIMEOUT", defaults.database_pool_timeout)
             ),
-            api_url=environ.get("API_URL", defaults.api_url),
+            api_url=environ.get("ORDERS_STOCK_API_URL", defaults.api_url),
             stock_worker_batch_size=int(
-                environ.get("STOCK_WORKER_BATCH_SIZE", defaults.stock_worker_batch_size)
+                environ.get("ORDERS_STOCK_WORKER_BATCH_SIZE", defaults.stock_worker_batch_size)
             ),
             stock_worker_poll_interval=float(
-                environ.get("STOCK_WORKER_POLL_INTERVAL", defaults.stock_worker_poll_interval)
+                environ.get(
+                    "ORDERS_STOCK_WORKER_POLL_INTERVAL", defaults.stock_worker_poll_interval
+                )
             ),
-            log_level=environ.get("LOG_LEVEL", defaults.log_level).upper(),
+            log_level=environ.get("ORDERS_STOCK_LOG_LEVEL", defaults.log_level).upper(),
         )

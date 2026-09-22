@@ -216,7 +216,7 @@ They can be started, stopped, deployed and rolled back independently, because th
 ## Running locally
 
 The system needs Python tooling (`uv`) and PostgreSQL 14 or newer, and nothing else (REQ-OPS-02).
-The default `DATABASE_URL` works unchanged with either way of providing PostgreSQL.
+The default `ORDERS_STOCK_DATABASE_URL` works unchanged with either way of providing PostgreSQL.
 
 **Native PostgreSQL.**
 Install it with the platform's package manager, then make sure the server is running and its client tools (`psql`, `createdb`, `dropdb`) are on `PATH`.
@@ -230,7 +230,7 @@ brew services start postgresql@17
 
 The `export` lasts only for the current shell, so repeat it, or add it to the shell profile, in any terminal that later runs the client tools.
 On Linux, install the distribution package and make sure its service is running: Debian and Ubuntu start it on install, while other distributions may first need the cluster initialized and the service started, as their package documentation describes.
-The default `DATABASE_URL` and `TEST_DATABASE_URL` authenticate with a password over TCP, so `pg_hba.conf` must allow `scram-sha-256` or `md5` for `host` connections from `127.0.0.1/32` and `::1/128`.
+The default `ORDERS_STOCK_DATABASE_URL` and `ORDERS_STOCK_TEST_DATABASE_URL` authenticate with a password over TCP, so `pg_hba.conf` must allow `scram-sha-256` or `md5` for `host` connections from `127.0.0.1/32` and `::1/128`.
 Homebrew, Debian and Ubuntu already accept these connections; where a distribution defaults to `ident` for them, as Fedora and RHEL do, change those lines and reload the server.
 
 With the server running, create the role and databases:
@@ -282,22 +282,24 @@ Event IDs start again at 1 in the new database, so start `consume-feed` with `--
 
 ## Runtime configuration
 
+Every setting carries the prefix `ORDERS_STOCK_`, so that it never collides with a variable such as `DATABASE_URL` that another project exports in the same shell.
+
 | Variable | Default | Used by |
 | --- | --- | --- |
-| `DATABASE_URL` | `postgresql://orders_stock:orders_stock@localhost:5432/orders_stock` | `api`, `stock-worker`, `migrate`, `seed` |
-| `DATABASE_POOL_TIMEOUT` | `5` (seconds) | `api`, `stock-worker` |
-| `API_URL` | `http://127.0.0.1:8000` | `burst`, `consume-feed` |
-| `STOCK_WORKER_BATCH_SIZE` | `100` | `stock-worker` |
-| `STOCK_WORKER_POLL_INTERVAL` | `0.5` (seconds) | `stock-worker` |
-| `LOG_LEVEL` | `INFO` | all processes |
-| `TEST_DATABASE_URL` | `postgresql://orders_stock:orders_stock@localhost:5432/orders_stock_test` | the test suite only |
+| `ORDERS_STOCK_DATABASE_URL` | `postgresql://orders_stock:orders_stock@localhost:5432/orders_stock` | `api`, `stock-worker`, `migrate`, `seed` |
+| `ORDERS_STOCK_DATABASE_POOL_TIMEOUT` | `5` (seconds) | `api`, `stock-worker` |
+| `ORDERS_STOCK_API_URL` | `http://127.0.0.1:8000` | `burst`, `consume-feed` |
+| `ORDERS_STOCK_WORKER_BATCH_SIZE` | `100` | `stock-worker` |
+| `ORDERS_STOCK_WORKER_POLL_INTERVAL` | `0.5` (seconds) | `stock-worker` |
+| `ORDERS_STOCK_LOG_LEVEL` | `INFO` | all processes |
+| `ORDERS_STOCK_TEST_DATABASE_URL` | `postgresql://orders_stock:orders_stock@localhost:5432/orders_stock_test` | the test suite only |
 
-`DATABASE_URL` is a libpq connection URI.
+`ORDERS_STOCK_DATABASE_URL` is a libpq connection URI.
 Settings are read once at start-up into a frozen dataclass; there is no configuration file.
 
 ### Database connections
 
-- Connections come from a `psycopg_pool.ConnectionPool`: `min_size=1`, `max_size=10` for `api` and `max_size=1` for `stock-worker`, `timeout` set from `DATABASE_POOL_TIMEOUT` to bound the wait to acquire a connection, and `check=ConnectionPool.check_connection` so that a connection broken by a PostgreSQL restart is replaced before use.
+- Connections come from a `psycopg_pool.ConnectionPool`: `min_size=1`, `max_size=10` for `api` and `max_size=1` for `stock-worker`, `timeout` set from `ORDERS_STOCK_DATABASE_POOL_TIMEOUT` to bound the wait to acquire a connection, and `check=ConnectionPool.check_connection` so that a connection broken by a PostgreSQL restart is replaced before use.
 - The pool is opened with `wait=False`, so `api` starts even when PostgreSQL is down (REQ-API-03).
 - Every connection is configured with autocommit off, isolation level `READ COMMITTED` set explicitly rather than inherited from server defaults, `TimeZone=UTC`, `statement_timeout=5s`, and `application_name` set to `orders-stock-api` or `orders-stock-stock-worker`.
 - `seed` opens one direct connection with the same configuration and `application_name` `orders-stock-seed`; `migrate` connects through yoyo.

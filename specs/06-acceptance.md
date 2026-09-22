@@ -10,7 +10,7 @@ The demonstration walkthrough for the recorded demo is [07-demo.md](07-demo.md).
   Each test function starts with its scenario ID in lower case, for example `test_ac_dup_04_concurrent_identical_submissions_create_one_order`.
   Tests live in the module named in [03-architecture.md](03-architecture.md#source-layout) for their group.
 - **Real PostgreSQL.**
-  Tests run against the database at `TEST_DATABASE_URL`.
+  Tests run against the database at `ORDERS_STOCK_TEST_DATABASE_URL`.
   The suite refuses to start unless the database name ends in `_test`.
   Nothing mocks the database.
 - **Schema.**
@@ -28,7 +28,7 @@ The demonstration walkthrough for the recorded demo is [07-demo.md](07-demo.md).
   "The applier is stopped" means it is not called.
   Only AC-OUT-05 runs the real `stock-worker` process.
 - **Commands.**
-  Scenarios that run an `orders-stock` command run it as a subprocess with `DATABASE_URL` set to the test database and, where needed, `API_URL` set to the `live_api` server.
+  Scenarios that run an `orders-stock` command run it as a subprocess with `ORDERS_STOCK_DATABASE_URL` set to the test database and, where needed, `ORDERS_STOCK_API_URL` set to the `live_api` server.
 - **Contract checking.**
   Every HTTP response a test receives from the API, through any `TestClient` or through `live_api`, is checked against [openapi.yaml](openapi.yaml) as AC-API-01 specifies when it is received, so a violation fails the test during which it occurred.
   Each checked response is also recorded as an observed pair of operation and status code.
@@ -455,7 +455,7 @@ Scenario outline.
 Traces: REQ-FEED-05.
 
 - **Given** the `live_api` fixture, and orders `web-300001` to `web-300003` accepted as events 1 to 3
-- **When** `orders-stock consume-feed --cursor-file <tmp>/cursor` runs as a subprocess with `API_URL` set, until it has printed 3 lines, and then receives `SIGINT`
+- **When** `orders-stock consume-feed --cursor-file <tmp>/cursor` runs as a subprocess with `ORDERS_STOCK_API_URL` set, until it has printed 3 lines, and then receives `SIGINT`
 - **Then** its stdout is 3 lines in the format of [03-architecture.md](03-architecture.md#consume-feed), for `event_id` 1, 2 and 3 in order
 - **And** the cursor file contains `3`
 - **When** orders `web-300004` and `web-300005` are accepted and the command runs again with the same cursor file until it has printed 2 lines
@@ -487,7 +487,7 @@ Traces: REQ-API-02.
 
 Traces: REQ-API-03.
 
-- **Given** an app created by `create_app` with settings whose `DATABASE_URL` points at a local port where nothing listens and whose `DATABASE_POOL_TIMEOUT` is 1 second
+- **Given** an app created by `create_app` with settings whose `ORDERS_STOCK_DATABASE_URL` points at a local port where nothing listens and whose `ORDERS_STOCK_DATABASE_POOL_TIMEOUT` is 1 second
 - **Then** the app starts
 - **And** each of `POST /orders` with O1, `GET /orders/web-100045`, `GET /stock/BAN-001` and `GET /order-events` returns `503` with `code` `service_unavailable` and `Retry-After: 1`.
 
@@ -536,7 +536,7 @@ Traces: REQ-OPS-05, REQ-CAT-01, REQ-STK-01.
 Traces: REQ-OPS-04, REQ-DUP-03.
 
 - **Given** the `live_api` fixture
-- **When** `orders-stock burst` runs as a subprocess with `API_URL` set
+- **When** `orders-stock burst` runs as a subprocess with `ORDERS_STOCK_API_URL` set
 - **Then** it exits 0
 - **And** its stdout table has the rows of [03-architecture.md](03-architecture.md#burst): for each `order_ref`, the same `submitted`, `201`, `200`, `409` and `total_cents` values
 - **And** its last line is exactly `summary: submitted=11 created=6 duplicate=4 conflict=1 failed=0`

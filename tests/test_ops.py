@@ -101,7 +101,7 @@ def test_ac_ops_02_seeding(
 def test_ac_ops_03_the_burst_command(
     live_api: LiveApi, conn: psycopg.Connection, run_command: Callable[..., Command]
 ) -> None:
-    env = {"API_URL": live_api.url}
+    env = {"ORDERS_STOCK_API_URL": live_api.url}
 
     code, stdout, stderr = run_to_completion(run_command, "burst", env=env)
     assert code == 0, stderr
