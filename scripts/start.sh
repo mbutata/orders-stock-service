@@ -15,8 +15,8 @@ cd "$(dirname "$0")/.."
 
 RUN_DIR=.run
 API=http://127.0.0.1:8000
-export API_URL=$API
-export DATABASE_URL=${DATABASE_URL:-postgresql://orders_stock:orders_stock@localhost:5432/orders_stock}
+export ORDERS_STOCK_API_URL=$API
+export ORDERS_STOCK_DATABASE_URL=${ORDERS_STOCK_DATABASE_URL:-postgresql://orders_stock:orders_stock@localhost:5432/orders_stock}
 
 usage() {
     cat <<'EOF'
@@ -28,7 +28,7 @@ Starts the api and stock-worker processes against PostgreSQL, as README.md descr
   --fresh   drop and recreate the local database first, for a clean demo take
             (the "Starting clean" procedure in specs/03-architecture.md)
 
-DATABASE_URL selects the database; it defaults to
+ORDERS_STOCK_DATABASE_URL selects the database; it defaults to
 postgresql://orders_stock:orders_stock@localhost:5432/orders_stock
 EOF
 }
@@ -95,19 +95,19 @@ rm -f "$RUN_DIR"/*.pid
 say "Installing dependencies"
 uv sync
 
-# DATABASE_URL with the password hidden, for messages.
-shown_url=$(printf '%s' "$DATABASE_URL" | sed -E 's#(//[^:/@]+):[^@]*@#\1:***@#')
+# ORDERS_STOCK_DATABASE_URL with the password hidden, for messages.
+shown_url=$(printf '%s' "$ORDERS_STOCK_DATABASE_URL" | sed -E 's#(//[^:/@]+):[^@]*@#\1:***@#')
 
-# Everything below hands DATABASE_URL to libpq, so first check that libpq can read it at all. A
-# common cause is a SQLAlchemy-style postgresql+driver:// address exported by another project.
+# Everything below hands ORDERS_STOCK_DATABASE_URL to libpq, so first check that libpq can read it
+# at all; a SQLAlchemy-style postgresql+driver:// address is a common mistake.
 uv run --quiet python -c '
 import os
 from psycopg.conninfo import conninfo_to_dict
-conninfo_to_dict(os.environ["DATABASE_URL"])' >/dev/null 2>&1 ||
-    die "DATABASE_URL is set to $shown_url, which PostgreSQL's tools cannot read; it may be left over from another project (a SQLAlchemy-style postgresql+driver:// address is a common cause).
-Unset it (unset DATABASE_URL) to use the demo database, or set it to a postgresql:// address."
+conninfo_to_dict(os.environ["ORDERS_STOCK_DATABASE_URL"])' >/dev/null 2>&1 ||
+    die "ORDERS_STOCK_DATABASE_URL is set to $shown_url, which PostgreSQL's tools cannot read (a SQLAlchemy-style postgresql+driver:// address is a common cause).
+Unset it (unset ORDERS_STOCK_DATABASE_URL) to use the demo database, or set it to a postgresql:// address."
 
-# One libpq parameter (host, port, user, dbname) of DATABASE_URL, parsed by libpq itself.
+# One libpq parameter (host, port, user, dbname) of ORDERS_STOCK_DATABASE_URL, parsed by libpq itself.
 db_param() {
     uv run --quiet python -c '
 import sys
@@ -116,20 +116,20 @@ from orders_stock.config import Settings
 print(conninfo_to_dict(Settings.from_env().database_url).get(sys.argv[1]) or "")' "$1"
 }
 
-# --fresh drops a database, so refuse before touching anything unless DATABASE_URL names the
-# demo database itself: exactly orders_stock, the documented default, on a local host. Any other
-# name may belong to another project, for example a DATABASE_URL left exported in the shell.
+# --fresh drops a database, so refuse before touching anything unless ORDERS_STOCK_DATABASE_URL
+# names the demo database itself: exactly orders_stock, the documented default, on a local host.
+# Any other name may belong to another project.
 if $fresh; then
     host=$(db_param host) port=$(db_param port) user=$(db_param user) dbname=$(db_param dbname)
     case $host in
         '' | localhost | 127.0.0.1 | ::1 | /*) ;;
-        *) die "--fresh drops the database, so it only runs against a local one; DATABASE_URL points at host '$host'." ;;
+        *) die "--fresh drops the database, so it only runs against a local one; ORDERS_STOCK_DATABASE_URL points at host '$host'." ;;
     esac
     [ "$dbname" = orders_stock ] ||
-        die "--fresh only drops the demo database orders_stock, but DATABASE_URL names '${dbname:-(none)}'; nothing was dropped."
-    [ -n "$user" ] || die "--fresh needs DATABASE_URL to name the role that owns the database."
+        die "--fresh only drops the demo database orders_stock, but ORDERS_STOCK_DATABASE_URL names '${dbname:-(none)}'; nothing was dropped."
+    [ -n "$user" ] || die "--fresh needs ORDERS_STOCK_DATABASE_URL to name the role that owns the database."
     if $use_docker && [ "${port:-5432}" != 5432 ]; then
-        die "--docker --fresh expects the compose database on port 5432; DATABASE_URL uses port $port."
+        die "--docker --fresh expects the compose database on port 5432; ORDERS_STOCK_DATABASE_URL uses port $port."
     fi
 fi
 
@@ -156,8 +156,8 @@ if $fresh; then
         docker compose exec -T postgres dropdb -U "$user" --if-exists "$dbname"
         docker compose exec -T postgres createdb -U "$user" "$dbname"
     else
-        # The same commands as "Starting clean", run as the DATABASE_URL role, which owns the
-        # database and has CREATEDB; the maintenance connection reuses its host and port. The
+        # The same commands as "Starting clean", run as the ORDERS_STOCK_DATABASE_URL role, which owns
+        # the database and has CREATEDB; the maintenance connection reuses its host and port. The
         # password goes only into their environment, never onto a command line that ps can show.
         maintenance=$(uv run --quiet python -c '
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
@@ -240,7 +240,7 @@ trap 'exit 143' TERM
 
 # The database for scripts/demo.sh, which restarts the stock worker; owner-only, as the URL can
 # hold a password.
-(umask 077 && printf '%s\n' "$DATABASE_URL" >"$RUN_DIR/database-url")
+(umask 077 && printf '%s\n' "$ORDERS_STOCK_DATABASE_URL" >"$RUN_DIR/database-url")
 : >"$RUN_DIR/api.log"
 : >"$RUN_DIR/stock-worker.log"
 show_log api "${CYAN}api          |${RESET} "

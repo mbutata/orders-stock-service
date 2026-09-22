@@ -199,7 +199,7 @@ def test_ac_feed_07_the_demonstration_consumer_prints_persists_and_resumes(
 ) -> None:
     accept_orders(client, range(300001, 300004))
     cursor = tmp_path / "cursor"
-    env = {"API_URL": live_api.url}
+    env = {"ORDERS_STOCK_API_URL": live_api.url}
 
     def consume(*extra: str, lines: int) -> list[str]:
         consumer = run_command(

@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 
 RUN_DIR=.run
 API=http://127.0.0.1:8000
-export API_URL=$API
+export ORDERS_STOCK_API_URL=$API
 WORKER_LOG=$RUN_DIR/stock-worker.log
 CURSOR=$RUN_DIR/feed-cursor
 
@@ -142,9 +142,9 @@ Start it first in another terminal with scripts/start.sh (scripts/start.sh --fre
 worker_pid=$(cat "$RUN_DIR/stock-worker.pid" 2>/dev/null) && kill -0 -- "-$worker_pid" 2>/dev/null ||
     die "stock-worker is not running. Stop scripts/start.sh with Ctrl-C and run scripts/start.sh --fresh."
 # The database scripts/start.sh runs against, so that the stock worker restarted in D-08 uses it too.
-DATABASE_URL=$(cat "$RUN_DIR/database-url" 2>/dev/null) ||
+ORDERS_STOCK_DATABASE_URL=$(cat "$RUN_DIR/database-url" 2>/dev/null) ||
     die "$RUN_DIR/database-url is missing. Stop scripts/start.sh with Ctrl-C and run scripts/start.sh --fresh."
-export DATABASE_URL
+export ORDERS_STOCK_DATABASE_URL
 status=$(curl -s -o /dev/null -w '%{http_code}' "$API/orders/web-100045")
 [ "$status" = 404 ] ||
     die "this database already holds the demo's orders (GET /orders/web-100045 returned $status).

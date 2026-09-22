@@ -30,8 +30,8 @@ from orders_stock.migrate import apply_migrations
 
 from contract import ContractChecker
 
-TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL",
+ORDERS_STOCK_TEST_DATABASE_URL = os.environ.get(
+    "ORDERS_STOCK_TEST_DATABASE_URL",
     "postgresql://orders_stock:orders_stock@localhost:5432/orders_stock_test",
 )
 COMMAND = str(Path(sys.executable).parent / "orders-stock")
@@ -73,7 +73,7 @@ def selects_whole_suite(config: pytest.Config) -> bool:
 # Database ---------------------------------------------------------------------------------
 
 
-def connect(database_url: str = TEST_DATABASE_URL) -> psycopg.Connection:
+def connect(database_url: str = ORDERS_STOCK_TEST_DATABASE_URL) -> psycopg.Connection:
     """A configured autocommit connection: each statement commits, `transaction()` blocks too."""
     conn = db.connect(database_url, "orders-stock-test")
     conn.autocommit = True
@@ -97,10 +97,12 @@ def reset_data(conn: psycopg.Connection, *, seed: bool) -> None:
 @pytest.fixture(scope="session", autouse=True)
 def database() -> str:
     """Once per session: refuse a non-test or unreachable database, recreate the schema, migrate."""
-    params = conninfo_to_dict(TEST_DATABASE_URL)
+    params = conninfo_to_dict(ORDERS_STOCK_TEST_DATABASE_URL)
     name = params.get("dbname", "")
     if not str(name).endswith("_test"):
-        pytest.exit(f"TEST_DATABASE_URL must name a database ending in _test, not {name!r}")
+        pytest.exit(
+            f"ORDERS_STOCK_TEST_DATABASE_URL must name a database ending in _test, not {name!r}"
+        )
     try:
         conn = connect()
     except psycopg.OperationalError as error:
@@ -110,12 +112,13 @@ def database() -> str:
         cause = next(iter(str(error).splitlines()), type(error).__name__)
         pytest.exit(
             f"The test database {target!r} is not reachable ({cause}). "
-            "Start PostgreSQL or set TEST_DATABASE_URL; see the PostgreSQL section of README.md."
+            "Start PostgreSQL or set ORDERS_STOCK_TEST_DATABASE_URL; "
+            "see the PostgreSQL section of README.md."
         )
     with conn:
         reset_schema(conn)
-    apply_migrations(TEST_DATABASE_URL)
-    return TEST_DATABASE_URL
+    apply_migrations(ORDERS_STOCK_TEST_DATABASE_URL)
+    return ORDERS_STOCK_TEST_DATABASE_URL
 
 
 @pytest.fixture(autouse=True)
@@ -175,7 +178,7 @@ def wait_until(predicate: Callable[[], bool], timeout: float, message: str) -> N
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(database_url=TEST_DATABASE_URL, stock_worker_poll_interval=0.1)
+    return Settings(database_url=ORDERS_STOCK_TEST_DATABASE_URL, stock_worker_poll_interval=0.1)
 
 
 @pytest.fixture(scope="session")
@@ -353,9 +356,9 @@ class Command:
 @pytest.fixture
 def command_env(settings: Settings) -> dict[str, str]:
     return {
-        "DATABASE_URL": TEST_DATABASE_URL,
-        "STOCK_WORKER_POLL_INTERVAL": str(settings.stock_worker_poll_interval),
-        "LOG_LEVEL": "INFO",
+        "ORDERS_STOCK_DATABASE_URL": ORDERS_STOCK_TEST_DATABASE_URL,
+        "ORDERS_STOCK_WORKER_POLL_INTERVAL": str(settings.stock_worker_poll_interval),
+        "ORDERS_STOCK_LOG_LEVEL": "INFO",
     }
 
 

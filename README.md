@@ -23,7 +23,7 @@ Start with [SOLUTION.md](SOLUTION.md), a ten-minute read; [specs/](specs/README.
 ## PostgreSQL
 
 The default connection settings expect PostgreSQL on `localhost:5432` with a role `orders_stock` (password `orders_stock`) owning the databases `orders_stock` and `orders_stock_test`.
-Set `DATABASE_URL` and `TEST_DATABASE_URL` to use anything else; every variable is listed in [Runtime configuration](specs/03-architecture.md#runtime-configuration).
+Set `ORDERS_STOCK_DATABASE_URL` and `ORDERS_STOCK_TEST_DATABASE_URL` to use anything else; every variable is listed in [Runtime configuration](specs/03-architecture.md#runtime-configuration).
 
 ### macOS (Homebrew)
 
@@ -111,7 +111,7 @@ It starts from a new database, as [Starting clean](specs/03-architecture.md#runn
 
 ```sh
 uv sync
-uv run pytest                  # the acceptance suite, against TEST_DATABASE_URL
+uv run pytest                  # the acceptance suite, against ORDERS_STOCK_TEST_DATABASE_URL
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests
