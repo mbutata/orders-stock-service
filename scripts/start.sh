@@ -95,6 +95,18 @@ rm -f "$RUN_DIR"/*.pid
 say "Installing dependencies"
 uv sync
 
+# DATABASE_URL with the password hidden, for messages.
+shown_url=$(printf '%s' "$DATABASE_URL" | sed -E 's#(//[^:/@]+):[^@]*@#\1:***@#')
+
+# Everything below hands DATABASE_URL to libpq, so first check that libpq can read it at all. A
+# common cause is a SQLAlchemy-style postgresql+driver:// address exported by another project.
+uv run --quiet python -c '
+import os
+from psycopg.conninfo import conninfo_to_dict
+conninfo_to_dict(os.environ["DATABASE_URL"])' >/dev/null 2>&1 ||
+    die "DATABASE_URL is set to $shown_url, which PostgreSQL's tools cannot read; it may be left over from another project (a SQLAlchemy-style postgresql+driver:// address is a common cause).
+Unset it (unset DATABASE_URL) to use the demo database, or set it to a postgresql:// address."
+
 # One libpq parameter (host, port, user, dbname) of DATABASE_URL, parsed by libpq itself.
 db_param() {
     uv run --quiet python -c '
@@ -125,9 +137,6 @@ if $use_docker; then
     say "Starting PostgreSQL with compose.yaml"
     docker compose up -d --wait
 fi
-
-# DATABASE_URL with the password hidden, for messages.
-shown_url=$(printf '%s' "$DATABASE_URL" | sed -E 's#(//[^:/@]+):[^@]*@#\1:***@#')
 
 say "Checking PostgreSQL at $shown_url"
 if ! error=$(uv run --quiet python -c '
