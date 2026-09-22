@@ -40,6 +40,19 @@ part() {
     printf '############################################################################%s\n' "$RESET"
 }
 
+# Throw away keys pressed while the previous step ran, so each pause waits for a fresh Enter.
+# Non-canonical mode with no minimum and no timeout makes cat return at once with whatever is
+# pending; bash 3.2's read -t takes whole seconds, which would delay every prompt. Piped input
+# is left alone.
+discard_typeahead() {
+    local saved
+    [ -t 0 ] || return 0
+    saved=$(stty -g)
+    stty -icanon min 0 time 0
+    cat >/dev/null
+    stty "$saved"
+}
+
 # step "D-nn - title" command...: show the commands, wait for Enter, then run them in turn.
 step() {
     local title=$1 cmd
@@ -48,6 +61,7 @@ step() {
     for cmd in "$@"; do
         printf '  $ %s\n' "$cmd"
     done
+    discard_typeahead
     printf '%s[Enter] to run%s ' "$DIM" "$RESET"
     read -r _ || { printf '\n'; exit 0; }
     for cmd in "$@"; do
