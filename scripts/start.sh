@@ -149,13 +149,20 @@ if $fresh; then
         docker compose exec -T postgres createdb -U "$user" "$dbname"
     else
         # The same commands as "Starting clean", run as the DATABASE_URL role, which owns the
-        # database and has CREATEDB; the maintenance connection reuses its host, port and password.
+        # database and has CREATEDB; the maintenance connection reuses its host and port. The
+        # password goes only into their environment, never onto a command line that ps can show.
         maintenance=$(uv run --quiet python -c '
-from psycopg.conninfo import make_conninfo
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from orders_stock.config import Settings
-print(make_conninfo(Settings.from_env().database_url, dbname="postgres"))')
-        dropdb --if-exists --maintenance-db="$maintenance" "$dbname"
-        createdb --maintenance-db="$maintenance" -O "$user" "$dbname"
+params = conninfo_to_dict(Settings.from_env().database_url)
+params.pop("password", None)
+print(make_conninfo(**{**params, "dbname": "postgres"}))')
+        password=$(db_param password)
+        with_password() {
+            if [ -n "$password" ]; then PGPASSWORD=$password "$@"; else "$@"; fi
+        }
+        with_password dropdb --if-exists --maintenance-db="$maintenance" "$dbname"
+        with_password createdb --maintenance-db="$maintenance" -O "$user" "$dbname"
     fi
     # Event IDs restart at 1, so the demo's feed consumer must start again too.
     rm -f "$RUN_DIR/feed-cursor"
