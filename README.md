@@ -62,6 +62,7 @@ docker compose up -d --wait
 ```
 
 This starts `postgres:17` on port 5432 with both databases already created; nothing else is needed.
+`ORDERS_STOCK_DB_PORT` publishes it on another host port instead, as [When port 5432 is in use](#when-port-5432-is-in-use) shows.
 Compose provisions PostgreSQL only: the application always runs natively.
 
 ## Run
@@ -83,6 +84,26 @@ scripts/demo.sh
 ```
 
 It shows each step's commands and runs them when Enter is pressed.
+
+### When port 5432 is in use
+
+If another PostgreSQL already listens on port 5432, publish the compose database on a free port instead:
+
+```sh
+ORDERS_STOCK_DB_PORT=5433 scripts/start.sh --docker --fresh
+```
+
+`scripts/start.sh --docker` then connects on that port, and `scripts/demo.sh` follows it without further settings.
+If that port is taken too, including by a server bound only to `127.0.0.1`, `start.sh` stops and says so; choose another, such as 5434.
+To use your own PostgreSQL on another port instead, export both addresses with that port:
+
+```sh
+export ORDERS_STOCK_DATABASE_URL=postgresql://orders_stock:orders_stock@localhost:5433/orders_stock
+export ORDERS_STOCK_TEST_DATABASE_URL=postgresql://orders_stock:orders_stock@localhost:5433/orders_stock_test
+scripts/start.sh --fresh
+```
+
+On either route, `uv run pytest` needs `ORDERS_STOCK_TEST_DATABASE_URL` exported with that port in the terminal that runs it.
 
 ### Manual steps
 

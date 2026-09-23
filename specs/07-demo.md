@@ -22,6 +22,8 @@ Two scripts run this walkthrough in two terminals instead of four:
 
 - `scripts/start.sh --fresh` performs the clean start of D-01 and D-02: it drops and recreates the local database `orders_stock`, and refuses before dropping anything if `ORDERS_STOCK_DATABASE_URL` names any other database or a non-local host, then applies the migrations, seeds, and runs `api` and `stock-worker`, standing in for T1 and T2 with each process's log prefixed.
   With `--docker` it first starts PostgreSQL with Docker Compose and recreates the database through `docker compose exec`; with native PostgreSQL it runs `dropdb` and `createdb` as the `ORDERS_STOCK_DATABASE_URL` role, which owns the database and has `CREATEDB`.
+  With `--docker`, `ORDERS_STOCK_DB_PORT` sets the host port the compose database is published on, 5432 by default, and the default `ORDERS_STOCK_DATABASE_URL` uses that port; `--docker --fresh` refuses if `ORDERS_STOCK_DATABASE_URL` names a different port.
+  With `--docker` it also stops, before recreating anything, if that address reaches a server other than the compose container, such as another PostgreSQL on the same port.
 - `scripts/demo.sh` then runs D-03 to D-09 step by step in the other terminal: before each step it prints a heading and the exact commands, waits for Enter, then runs them, and it points out what the output proves.
 
 The steps below remain the normative reference, and the scripts follow them, with these differences in presentation:
@@ -53,6 +55,7 @@ uv sync
 uv run orders-stock migrate
 ```
 
+If another PostgreSQL already uses port 5432, run the `docker compose up` line with `ORDERS_STOCK_DB_PORT` set to a free port, and export `ORDERS_STOCK_DATABASE_URL` with that port in every terminal, as [Running locally](03-architecture.md#running-locally) describes.
 With native PostgreSQL, first make sure the server is running and its client tools are on `PATH` in T4, as [Running locally](03-architecture.md#running-locally) describes.
 Then recreate the database with the native commands in [Starting clean](03-architecture.md#running-locally) instead of the two `docker compose exec` lines.
 

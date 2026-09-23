@@ -7,7 +7,8 @@ services:
       POSTGRES_PASSWORD: orders_stock
       POSTGRES_DB: orders_stock
     ports:
-      - "5432:5432"
+      # ORDERS_STOCK_DB_PORT moves the host port off 5432 when another PostgreSQL already uses it.
+      - "${ORDERS_STOCK_DB_PORT:-5432}:5432"
     volumes:
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
       - postgres-data:/var/lib/postgresql/data

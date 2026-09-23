@@ -247,6 +247,7 @@ The last command lets the test suite drop and recreate the `public` schema of th
 
 **Docker Compose, optional.**
 `docker compose up -d --wait` starts the `postgres:17` image as service `postgres` on port 5432 with user, password and database `orders_stock`, and an init script, `docker/initdb/create-test-database.sql`, creates `orders_stock_test`.
+`ORDERS_STOCK_DB_PORT` publishes it on another host port, for example `ORDERS_STOCK_DB_PORT=5433 docker compose up -d --wait` when another PostgreSQL already uses 5432; the container keeps port 5432, and `ORDERS_STOCK_DATABASE_URL` and `ORDERS_STOCK_TEST_DATABASE_URL` must then name the new port.
 The service's health check runs `pg_isready` over TCP, so `--wait` returns only once PostgreSQL accepts connections.
 There `orders_stock` is the superuser, so it needs no further setup.
 Compose provisions PostgreSQL only; the application always runs natively (NG-15).
@@ -293,6 +294,7 @@ Every setting carries the prefix `ORDERS_STOCK_`, so that it never collides with
 | `ORDERS_STOCK_WORKER_POLL_INTERVAL` | `0.5` (seconds) | `stock-worker` |
 | `ORDERS_STOCK_LOG_LEVEL` | `INFO` | all processes |
 | `ORDERS_STOCK_TEST_DATABASE_URL` | `postgresql://orders_stock:orders_stock@localhost:5432/orders_stock_test` | the test suite only |
+| `ORDERS_STOCK_DB_PORT` | `5432` | `compose.yaml` and `scripts/start.sh --docker` only: the host port the compose database is published on |
 
 `ORDERS_STOCK_DATABASE_URL` is a libpq connection URI.
 Settings are read once at start-up into a frozen dataclass; there is no configuration file.
