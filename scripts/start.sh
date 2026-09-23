@@ -16,7 +16,8 @@ cd "$(dirname "$0")/.."
 RUN_DIR=.run
 API=http://127.0.0.1:8000
 export ORDERS_STOCK_API_URL=$API
-export ORDERS_STOCK_DATABASE_URL=${ORDERS_STOCK_DATABASE_URL:-postgresql://orders_stock:orders_stock@localhost:5432/orders_stock}
+# The host port compose.yaml publishes PostgreSQL on; the --docker default address uses it.
+DB_PORT=${ORDERS_STOCK_DB_PORT:-5432}
 
 usage() {
     cat <<'EOF'
@@ -30,6 +31,8 @@ Starts the api and stock-worker processes against PostgreSQL, as README.md descr
 
 ORDERS_STOCK_DATABASE_URL selects the database; it defaults to
 postgresql://orders_stock:orders_stock@localhost:5432/orders_stock
+With --docker, ORDERS_STOCK_DB_PORT sets the host port compose.yaml publishes PostgreSQL on
+(default 5432), and the default address uses that port instead of 5432.
 EOF
 }
 
@@ -56,6 +59,12 @@ for arg in "$@"; do
         *) usage >&2; exit 2 ;;
     esac
 done
+
+if $use_docker; then
+    export ORDERS_STOCK_DATABASE_URL=${ORDERS_STOCK_DATABASE_URL:-postgresql://orders_stock:orders_stock@localhost:$DB_PORT/orders_stock}
+else
+    export ORDERS_STOCK_DATABASE_URL=${ORDERS_STOCK_DATABASE_URL:-postgresql://orders_stock:orders_stock@localhost:5432/orders_stock}
+fi
 
 # --- Prerequisites ----------------------------------------------------------------------------
 
@@ -128,14 +137,16 @@ if $fresh; then
     [ "$dbname" = orders_stock ] ||
         die "--fresh only drops the demo database orders_stock, but ORDERS_STOCK_DATABASE_URL names '${dbname:-(none)}'; nothing was dropped."
     [ -n "$user" ] || die "--fresh needs ORDERS_STOCK_DATABASE_URL to name the role that owns the database."
-    if $use_docker && [ "${port:-5432}" != 5432 ]; then
-        die "--docker --fresh expects the compose database on port 5432; ORDERS_STOCK_DATABASE_URL uses port $port."
+    if $use_docker && [ "${port:-5432}" != "$DB_PORT" ]; then
+        die "--docker --fresh expects the compose database on port $DB_PORT (ORDERS_STOCK_DB_PORT); ORDERS_STOCK_DATABASE_URL uses port ${port:-5432}."
     fi
 fi
 
 if $use_docker; then
     say "Starting PostgreSQL with compose.yaml"
-    docker compose up -d --wait
+    docker compose up -d --wait ||
+        die "docker compose could not start PostgreSQL (its error is above). If another server already uses port $DB_PORT,
+choose a free one, for example: ORDERS_STOCK_DB_PORT=5434 scripts/start.sh --docker --fresh"
 fi
 
 say "Checking PostgreSQL at $shown_url"
@@ -144,9 +155,25 @@ import psycopg
 from orders_stock.config import Settings
 psycopg.connect(Settings.from_env().database_url, connect_timeout=5).close()' 2>&1); then
     printf '%s\n' "$error" | tail -n 1 >&2
+    $use_docker && die "cannot connect to PostgreSQL at $shown_url.
+If another server already uses port $DB_PORT, choose a free one with ORDERS_STOCK_DB_PORT, as README.md describes."
     die "cannot connect to PostgreSQL at $shown_url.
 Start PostgreSQL and create the role and databases as README.md 'PostgreSQL' describes,
 or run scripts/start.sh --docker to start PostgreSQL in a container with compose.yaml."
+fi
+
+# A server bound to 127.0.0.1 or ::1 on the same port answers in place of the published container,
+# which Docker Desktop does not report, so check that the address reaches the container itself.
+if $use_docker; then
+    reached=$(uv run --quiet python -c '
+import psycopg
+from orders_stock.config import Settings
+with psycopg.connect(Settings.from_env().database_url, connect_timeout=5) as conn:
+    print(conn.execute("SELECT pg_postmaster_start_time()::text").fetchone()[0])')
+    container=$(docker compose exec -T postgres psql -U orders_stock -d postgres -Atc 'SELECT pg_postmaster_start_time()::text')
+    [ "$reached" = "$container" ] ||
+        die "$shown_url reaches another PostgreSQL server, not the compose container; another server already uses port $DB_PORT.
+Choose a free port, for example: ORDERS_STOCK_DB_PORT=5434 scripts/start.sh --docker --fresh"
 fi
 
 if $fresh; then

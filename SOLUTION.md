@@ -177,6 +177,9 @@ The suite runs with warnings as errors.
   `start.sh` also records its `ORDERS_STOCK_DATABASE_URL` in `.run/database-url`, readable only by its owner, and `demo.sh` exports it, so the stock worker restarted in D-08 uses the same database whatever the demo's terminal sets.
 - **Prefixed settings.**
   Every setting was renamed with the prefix `ORDERS_STOCK_` (for example `DATABASE_URL` became `ORDERS_STOCK_DATABASE_URL`), so that a `DATABASE_URL` another project exports in the same shell no longer redirects or breaks the service and its scripts.
+- **Configurable compose port.**
+  `ORDERS_STOCK_DB_PORT` sets the host port `compose.yaml` publishes PostgreSQL on, and `scripts/start.sh --docker` connects on it, so the demo runs on a machine where another PostgreSQL already uses port 5432.
+  Because Docker Desktop publishes a port even when a native server already listens on it at `127.0.0.1`, `start.sh --docker` also checks that its address reaches the container itself before it recreates or migrates anything.
 
 ### Observations from running the system
 
